@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { BRANCHES, branchName } from './branches'
-import { loadLowLevels, stockStatus, statusColor } from './stockStatus'
 import { todayString, localDateString } from './dateUtils'
+import InventoryTable from './InventoryTable'
 
 const DELIVERY_LABELS = {
   not_started: 'Not started',
@@ -20,9 +20,7 @@ const TYPE_LABELS = {
 export default function BranchView() {
   const [branch, setBranch] = useState(1)
   const [view, setView] = useState('inventory')
-  const [stock, setStock] = useState([])
   const [orders, setOrders] = useState([])
-  const [levels, setLevels] = useState({})
   const [reportDate, setReportDate] = useState('') // '' means today
   const [message, setMessage] = useState('')
 
@@ -33,16 +31,8 @@ export default function BranchView() {
       .select('*')
       .eq('branch', branch)
       .order('created_at', { ascending: false })
-    const stockResult = await supabase
-      .from('stock')
-      .select('*')
-      .eq('branch', branch)
-      .order('item_name')
     if (ordersResult.error) setMessage(ordersResult.error.message)
     else setOrders(ordersResult.data)
-    if (stockResult.error) setMessage(stockResult.error.message)
-    else setStock(stockResult.data)
-    setLevels(await loadLowLevels(supabase))
   }
 
   useEffect(() => {
@@ -58,10 +48,7 @@ export default function BranchView() {
   const reportRows = [...pendingOrders, ...dayOrders]
   const dayTotal = dayOrders.reduce((sum, o) => sum + Number(o.total_price), 0)
 
-  const viewStyle = (v) => ({
-    fontWeight: view === v ? 'bold' : 'normal',
-    marginRight: 8,
-  })
+  const viewClass = (v) => `mr-2 ${view === v ? 'font-bold' : 'font-normal'}`
 
   return (
     <div>
@@ -77,49 +64,24 @@ export default function BranchView() {
       </label>{' '}
       <button onClick={load}>Refresh</button>
 
-      <nav style={{ margin: '24px 0' }}>
-        <button style={viewStyle('inventory')} onClick={() => setView('inventory')}>Inventory</button>
-        <button style={viewStyle('report')} onClick={() => setView('report')}>Daily Sales Report</button>
+      <nav className="my-6">
+        <button className={viewClass('inventory')} onClick={() => setView('inventory')}>
+          Inventory
+        </button>
+        <button className={viewClass('report')} onClick={() => setView('report')}>
+          Daily Sales Report
+        </button>
       </nav>
 
       {message && <p>{message}</p>}
 
-      {view === 'inventory' && (
-        <div>
-          <h3>{branchName(branch)} Inventory</h3>
-          <table style={{ margin: '16px auto' }} cellPadding="8">
-            <thead>
-              <tr><th>Item</th><th>In stock</th><th>Price</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {stock.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.item_name}</td>
-                  <td>{s.quantity}</td>
-                  <td>{Number(s.price).toFixed(2)}</td>
-                  <td
-                    style={{
-                      color: statusColor(stockStatus(s.item_name, s.quantity, levels)),
-                      fontWeight: 600,
-                    }}
-                  >
-                    {stockStatus(s.item_name, s.quantity, levels)}
-                  </td>
-                </tr>
-              ))}
-              {stock.length === 0 && (
-                <tr><td colSpan="4">No stock in this branch</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {view === 'inventory' && <InventoryTable branch={branch} />}
 
       {view === 'report' && (
         <div>
           <h3>{branchName(branch)} Daily Sales Report</h3>
 
-          <div style={{ marginBottom: 12 }}>
+          <div className="mb-3">
             <label>
               Date:{' '}
               <input
@@ -136,12 +98,12 @@ export default function BranchView() {
             <button onClick={() => setReportDate('')}>Today</button>
           </div>
 
-          <p style={{ fontSize: 14 }}>
+          <p className="text-[14px]">
             Orders waiting to be accepted are shown first (highlighted), whatever the date.
           </p>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ margin: '16px auto' }} cellPadding="8">
+          <div className="overflow-x-auto">
+            <table className="mx-auto my-4 [&_td]:p-2 [&_th]:p-2">
               <thead>
                 <tr>
                   <th>Customer name</th>
@@ -155,7 +117,7 @@ export default function BranchView() {
               </thead>
               <tbody>
                 {reportRows.map((o) => (
-                  <tr key={o.id} style={o.status === 'pending' ? { background: '#fff7e0' } : undefined}>
+                  <tr key={o.id} className={o.status === 'pending' ? 'bg-[#fff7e0]' : ''}>
                     <td>
                       {o.customer_name}
                       {o.source === 'phone' ? ' (phone)' : ''}

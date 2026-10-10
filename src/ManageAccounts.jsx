@@ -13,19 +13,8 @@ const emptyForm = {
   password: '',
 }
 
-const formStyle = {
-  maxWidth: 360,
-  margin: '0 auto 24px',
-  display: 'grid',
-  gap: 10,
-  textAlign: 'left',
-  background: '#ffffff',
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  padding: 20,
-}
-
-const fieldStyle = { display: 'grid', gap: 4, fontSize: 14 }
+const FIELD = 'grid gap-1 text-[14px]'
+const CANCEL_BTN = 'flex-1 border border-(color:--border) bg-white text-(color:--text)'
 
 export default function ManageAccounts({ mode, branch }) {
   const isAdmin = mode === 'admin'
@@ -191,7 +180,7 @@ export default function ManageAccounts({ mode, branch }) {
       <h2>Manage Account</h2>
       {message && <p>{message}</p>}
 
-      <div style={{ marginBottom: 16 }}>
+      <div className="mb-4">
         {isAdmin && (
           <label>
             Branch:{' '}
@@ -207,26 +196,29 @@ export default function ManageAccounts({ mode, branch }) {
       </div>
 
       {editing && (
-        <form onSubmit={handleSubmit} style={formStyle}>
-          <h3 style={{ margin: 0 }}>{isNew ? 'Add account' : 'Edit account'}</h3>
+        <form
+          onSubmit={handleSubmit}
+          className="mx-auto mb-6 grid max-w-90 gap-2.5 rounded-xl border border-(color:--border) bg-white p-5 text-left"
+        >
+          <h3 className="m-0">{isNew ? 'Add account' : 'Edit account'}</h3>
 
-          <label style={fieldStyle}>
+          <label className={FIELD}>
             Full name
             <input value={form.fullName} onChange={setField('fullName')} required />
           </label>
 
-          <label style={fieldStyle}>
+          <label className={FIELD}>
             Address
             <input value={form.address} onChange={setField('address')} required />
           </label>
 
-          <label style={fieldStyle}>
+          <label className={FIELD}>
             Contact No.
             <input type="tel" value={form.contactNumber} onChange={setField('contactNumber')} required />
           </label>
 
           {isAdmin && (
-            <label style={fieldStyle}>
+            <label className={FIELD}>
               Branch
               <select value={form.branch} onChange={setField('branch')} required>
                 <option value="" disabled>Select branch</option>
@@ -239,38 +231,34 @@ export default function ManageAccounts({ mode, branch }) {
 
           {isNew ? (
             <>
-              <label style={fieldStyle}>
+              <label className={FIELD}>
                 Email
                 <input type="email" value={form.email} onChange={setField('email')} required />
               </label>
-              <label style={fieldStyle}>
+              <label className={FIELD}>
                 Password (min 6 characters)
                 <input type="password" value={form.password} onChange={setField('password')} required minLength={6} />
               </label>
             </>
           ) : (
-            <p style={{ margin: 0, fontSize: 14 }}>
+            <p className="m-0 text-[14px]">
               Email: {form.email} ({form.role})
             </p>
           )}
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="submit" disabled={saving} style={{ flex: 1 }}>
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving} className="flex-1">
               {saving ? 'Saving...' : isNew ? 'Create account' : 'Save changes'}
             </button>
-            <button
-              type="button"
-              onClick={() => setEditing(null)}
-              style={{ flex: 1, background: '#ffffff', color: 'var(--text)', border: '1px solid var(--border)' }}
-            >
+            <button type="button" onClick={() => setEditing(null)} className={CANCEL_BTN}>
               Cancel
             </button>
           </div>
         </form>
       )}
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ margin: '0 auto' }} cellPadding="8">
+      <div className="overflow-x-auto">
+        <table className="mx-auto [&_td]:p-2 [&_th]:p-2">
           <thead>
             <tr>
               <th>Name</th>
