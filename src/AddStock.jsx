@@ -3,6 +3,9 @@ import { supabase } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
 
+const FIELD = 'grid gap-1 text-[14px]'
+const INPUT = 'box-border w-full'
+
 export default function AddStock({ branch, onBack }) {
   const [prices, setPrices] = useState([])
   const [size, setSize] = useState('')
@@ -47,7 +50,7 @@ export default function AddStock({ branch, onBack }) {
       setMessage('Quantity must be a whole number of at least 1')
       return
     }
-    
+
     if (!(await confirmDialog(`Are you sure you want to add ${qty} x LPG Cylinder ${size} to ${branchName(branch)}?`))) {
       return
     }
@@ -67,38 +70,36 @@ export default function AddStock({ branch, onBack }) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ maxWidth: 320, margin: '60px auto', display: 'grid', gap: 12, textAlign: 'left' }}
-    >
+    <form onSubmit={handleSubmit} className="mx-auto my-15 grid max-w-80 gap-3 text-left">
       <h2>Add Stock - {branchName(branch)}</h2>
 
-      <label>
+      <label className={FIELD}>
         Product
-        <input value="LPG Cylinder" readOnly style={{ width: '100%' }} />
+        <input className={INPUT} value="LPG Cylinder" readOnly />
       </label>
 
-      <label>
+      <label className={FIELD}>
         Size
-        <select value={size} onChange={(e) => setSize(e.target.value)} style={{ width: '100%' }}>
+        <select className={INPUT} value={size} onChange={(e) => setSize(e.target.value)}>
           {prices.map((p) => (
             <option key={p.size} value={p.size}>{p.size}</option>
           ))}
         </select>
       </label>
 
-      <label>
+      <label className={FIELD}>
         Price
         <input
+          className={INPUT}
           value={selected ? Number(selected.price).toFixed(2) : ''}
           readOnly
-          style={{ width: '100%' }}
         />
       </label>
 
-      <label>
+      <label className={FIELD}>
         Quantity
         <input
+          className={INPUT}
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
@@ -107,7 +108,6 @@ export default function AddStock({ branch, onBack }) {
           value={quantity}
           onChange={handleQuantity}
           required
-          style={{ width: '100%' }}
         />
       </label>
 

@@ -1,6 +1,7 @@
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
 
 @theme {
   --color-brand: #166534;
@@ -9,78 +10,81 @@
   --color-brand-light: #dcecdf;
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+/* Base styles: Tailwind classes can override these */
 @layer base {
-:root {
-  --bg: #eef5ef;           /* page background */
-  --text: #14261b;         /* main text */
-  --primary: #166534;      /* buttons */
-  --primary-text: #ffffff; /* text on buttons */
-  --border: #bcd5c2;       /* lines and input borders */
-  --card: #ffffff;         /* table background */
-  --table-head: #dcecdf;   /* table header */
-  --font: 'Poppins', system-ui, sans-serif;
+  :root {
+    --bg: #eef5ef;           /* page background */
+    --text: #14261b;         /* main text */
+    --primary: #166534;      /* buttons */
+    --primary-text: #ffffff; /* text on buttons */
+    --border: #bcd5c2;       /* lines and input borders */
+    --card: #ffffff;         /* table background */
+    --table-head: #dcecdf;   /* table header */
+    --font: 'Poppins', system-ui, sans-serif;
 
-  color-scheme: light;
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+  }
+
+  #root {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  h1, h2, h3 {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  button {
+    background: var(--primary);
+    color: var(--primary-text);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease,
+      transform 0.1s ease, box-shadow 0.2s ease;
+  }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button:active:not(:disabled) { transform: scale(0.95); }
+
+  input, select {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #ffffff;
+    color: var(--text);
+    font-family: inherit;
+  }
+
+  table {
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  th { background: var(--table-head); }
+  th, td { border-bottom: 1px solid var(--border); }
+
+  /* Respect people who turn animations off in their device settings */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-}
-
-#root {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 16px;
-}
-
-h1, h2, h3 {
-  color: var(--text);
-  font-weight: 600;
-}
-
-button {
-  background: var(--primary);
-  color: var(--primary-text);
-  border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-family: inherit;
-  cursor: pointer;
-}
-button:hover { opacity: 0.9; }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-input, select {
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: #ffffff;
-  color: var(--text);
-  font-family: inherit;
-}
-
-table {
-  border-collapse: collapse;
-  background: var(--card);
-  border: 1px solid var(--border);
-}
-th { background: var(--table-head); }
-th, td { border-bottom: 1px solid var(--border); }
-
-/* Button animation (all buttons in the app) */
-button {
-  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease,
-    transform 0.1s ease, box-shadow 0.2s ease;
-}
-button:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-/* Popup animation */
+/* Animations used by the confirmation popup */
 @keyframes confirm-fade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -88,19 +92,4 @@ button:active:not(:disabled) {
 @keyframes confirm-pop {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
-}
-.confirm-backdrop {
-  animation: confirm-fade 0.2s ease;
-}
-.confirm-box {
-  animation: confirm-pop 0.2s ease;
-}
-
-/* Respect people who turn animations off in their device settings */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
 }

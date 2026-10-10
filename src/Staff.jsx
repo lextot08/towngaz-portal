@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
-import { loadLowLevels, stockStatus, statusColor } from './stockStatus'
 import { todayString, localDateString } from './dateUtils'
 import AddStock from './AddStock'
 import ManualOrder from './ManualOrder'
@@ -22,14 +21,15 @@ const TYPE_LABELS = {
   rto: 'Retail Outlet',
 }
 
-const fieldStyle = { display: 'grid', gap: 4, fontSize: 14 }
+// Tailwind class groups used in several places
+const FIELD = 'grid gap-1 text-[14px]'
+const CANCEL_BTN = 'flex-1 border border-(color:--border) bg-white text-(color:--text)'
+const TABLE = 'mx-auto [&_td]:p-2 [&_th]:p-2'
 
 export default function Staff({ user, branch }) {
   const [view, setView] = useState('main')
   const [tab, setTab] = useState('home')
   const [orders, setOrders] = useState([])
-  const [stock, setStock] = useState([])
-  const [levels, setLevels] = useState({})
   const [reportDate, setReportDate] = useState('') // '' means today
   const [editing, setEditing] = useState(null) // the order being edited
   const [editName, setEditName] = useState('')
@@ -43,16 +43,8 @@ export default function Staff({ user, branch }) {
       .select('*')
       .eq('branch', branch)
       .order('created_at', { ascending: false })
-    const stockResult = await supabase
-      .from('stock')
-      .select('*')
-      .eq('branch', branch)
-      .order('item_name')
     if (ordersResult.error) setMessage(ordersResult.error.message)
     else setOrders(ordersResult.data)
-    if (stockResult.error) setMessage(stockResult.error.message)
-    else setStock(stockResult.data)
-    setLevels(await loadLowLevels(supabase))
   }
 
   useEffect(() => {
@@ -148,17 +140,14 @@ export default function Staff({ user, branch }) {
     await callFunction('delete_order', { p_order_id: o.id })
   }
 
-  const tabStyle = (t) => ({
-    fontWeight: tab === t ? 'bold' : 'normal',
-    marginRight: 8,
-  })
+  const tabClass = (t) => `mr-2 ${tab === t ? 'font-bold' : 'font-normal'}`
 
   return (
-    <div style={{ textAlign: 'center', marginTop: 40 }}>
-      <nav style={{ marginBottom: 24 }}>
-        <button style={tabStyle('home')} onClick={() => setTab('home')}>Home</button>
-        <button style={tabStyle('inventory')} onClick={() => setTab('inventory')}>Inventory</button>
-        <button style={tabStyle('report')} onClick={() => setTab('report')}>
+    <div className="mt-10 text-center">
+      <nav className="mb-6">
+        <button className={tabClass('home')} onClick={() => setTab('home')}>Home</button>
+        <button className={tabClass('inventory')} onClick={() => setTab('inventory')}>Inventory</button>
+        <button className={tabClass('report')} onClick={() => setTab('report')}>
           Daily Sales Report{pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ''}
         </button>
         <button
@@ -178,7 +167,7 @@ export default function Staff({ user, branch }) {
           <p>Logged in as {user.email}</p>
           <p>Orders waiting to be accepted: {pendingOrders.length}</p>
           <p>Orders to deliver: {toDeliver.length}</p>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 24, flexWrap: 'wrap' }}>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
             <button onClick={() => setView('addstock')}>Add stock</button>
             <button onClick={() => setView('manualorder')}>Manual add order</button>
             <button onClick={() => setView('updateprice')}>Update price</button>
@@ -192,7 +181,7 @@ export default function Staff({ user, branch }) {
         <div>
           <h2>Daily Sales Report - {branchName(branch)}</h2>
 
-          <div style={{ marginBottom: 12 }}>
+          <div className="mb-3">
             <label>
               Date:{' '}
               <input
@@ -209,36 +198,26 @@ export default function Staff({ user, branch }) {
             <button onClick={() => setReportDate('')}>Today</button>
           </div>
 
-          <p style={{ fontSize: 14 }}>
+          <p className="text-[14px]">
             Orders waiting to be accepted are shown first (highlighted), whatever the date.
           </p>
 
           {editing && (
             <form
               onSubmit={saveEdit}
-              style={{
-                maxWidth: 360,
-                margin: '0 auto 24px',
-                display: 'grid',
-                gap: 10,
-                textAlign: 'left',
-                background: '#ffffff',
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                padding: 20,
-              }}
+              className="mx-auto mb-6 grid max-w-90 gap-2.5 rounded-xl border border-(color:--border) bg-white p-5 text-left"
             >
-              <h3 style={{ margin: 0 }}>Edit order #{editing.id}</h3>
-              <p style={{ margin: 0, fontSize: 14 }}>
+              <h3 className="m-0">Edit order #{editing.id}</h3>
+              <p className="m-0 text-[14px]">
                 {editing.item_name} x {editing.quantity}
               </p>
 
-              <label style={fieldStyle}>
+              <label className={FIELD}>
                 Customer name
                 <input value={editName} onChange={(e) => setEditName(e.target.value)} required />
               </label>
 
-              <label style={fieldStyle}>
+              <label className={FIELD}>
                 Remarks
                 <input
                   value={editRemarks}
@@ -248,7 +227,7 @@ export default function Staff({ user, branch }) {
               </label>
 
               {editing.status === 'accepted' && (
-                <label style={fieldStyle}>
+                <label className={FIELD}>
                   Delivery status
                   <select value={editDelivery} onChange={(e) => setEditDelivery(e.target.value)}>
                     {['preparing', 'out_for_delivery', 'delivered'].map((s) => (
@@ -258,25 +237,21 @@ export default function Staff({ user, branch }) {
                 </label>
               )}
 
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="submit" style={{ flex: 1 }}>Save changes</button>
-                <button
-                  type="button"
-                  onClick={() => setEditing(null)}
-                  style={{ flex: 1, background: '#ffffff', color: 'var(--text)', border: '1px solid var(--border)' }}
-                >
+              <div className="flex gap-2">
+                <button type="submit" className="flex-1">Save changes</button>
+                <button type="button" onClick={() => setEditing(null)} className={CANCEL_BTN}>
                   Cancel
                 </button>
               </div>
             </form>
           )}
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ margin: '0 auto' }} cellPadding="8">
+          <div className="overflow-x-auto">
+            <table className={TABLE}>
               <thead>
                 <tr>
                   <th>Customer name</th>
-                  <th>Type</th>                  
+                  <th>Type</th>
                   <th>Product</th>
                   <th>Unit cost</th>
                   <th>Amount</th>
@@ -287,12 +262,12 @@ export default function Staff({ user, branch }) {
               </thead>
               <tbody>
                 {reportRows.map((o) => (
-                  <tr key={o.id} style={o.status === 'pending' ? { background: '#fff7e0' } : undefined}>
+                  <tr key={o.id} className={o.status === 'pending' ? 'bg-[#fff7e0]' : ''}>
                     <td>
                       {o.customer_name}
                       {o.source === 'phone' ? ' (phone)' : ''}
                     </td>
-                    <td>{TYPE_LABELS[o.customer_type] || 'Household'}</td>                    
+                    <td>{TYPE_LABELS[o.customer_type] || 'Household'}</td>
                     <td>{o.item_name} x {o.quantity}</td>
                     <td>{Number(o.unit_price).toFixed(2)}</td>
                     <td>{Number(o.total_price).toFixed(2)}</td>

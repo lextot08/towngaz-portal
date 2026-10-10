@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import './Confirm.css'
 
 let openDialog = null
 
@@ -42,18 +41,26 @@ export default function ConfirmDialog() {
   }
 
   return (
-    <div className="confirm-backdrop" onClick={() => answer(false)}>
+    <div
+      className="fixed inset-0 z-[1000] box-border flex animate-[confirm-fade_0.2s_ease] items-center justify-center bg-black/50 p-4"
+      onClick={() => answer(false)}
+    >
       <div
-        className="confirm-box"
+        className="box-border w-full max-w-[380px] animate-[confirm-pop_0.2s_ease] rounded-2xl bg-white p-6 text-center shadow-2xl"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="confirm-title">Please confirm</h3>
-        <p className="confirm-message">{dialog.message}</p>
-        <div className="confirm-actions">
-          <button className="confirm-cancel" onClick={() => answer(false)}>Cancel</button>
-          <button autoFocus onClick={() => answer(true)}>Yes</button>
+        <h3 className="mt-0 mb-2 text-xl">Please confirm</h3>
+        <p className="mt-0 mb-5">{dialog.message}</p>
+        <div className="flex gap-2">
+          <button
+            className="flex-1 border border-[var(--border)] bg-white text-[var(--text)]"
+            onClick={() => answer(false)}
+          >
+            Cancel
+          </button>
+          <button className="flex-1" autoFocus onClick={() => answer(true)}>Yes</button>
         </div>
       </div>
     </div>

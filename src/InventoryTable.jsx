@@ -37,7 +37,7 @@ export default function InventoryTable({ branch }) {
     <div>
       <h2>{branchName(branch)} Inventory</h2>
 
-      <div style={{ marginBottom: 12 }}>
+      <div className="mb-3">
         <label>
           Date:{' '}
           <input
@@ -55,8 +55,8 @@ export default function InventoryTable({ branch }) {
 
       {message && <p>{message}</p>}
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ margin: '16px auto' }} cellPadding="8">
+      <div className="overflow-x-auto">
+        <table className="mx-auto my-4 [&_td]:p-2 [&_th]:p-2">
           <thead>
             <tr>
               <th>Item</th>
@@ -77,7 +77,7 @@ export default function InventoryTable({ branch }) {
                   <td>{r.sold}</td>
                   <td>{r.ending}</td>
                   <td>{Number(r.price).toFixed(2)}</td>
-                  <td style={{ color: statusColor(status), fontWeight: 600 }}>{status}</td>
+                  <td className="font-semibold" style={{ color: statusColor(status) }}>{status}</td>
                 </tr>
               )
             })}
@@ -88,7 +88,7 @@ export default function InventoryTable({ branch }) {
         </table>
       </div>
 
-      <p style={{ fontSize: 14, maxWidth: 560, margin: '0 auto' }}>
+      <p className="mx-auto my-0 max-w-140 text-[14px]">
         Beginning: stock when the day started. Sold: cylinders sold that day. Ending: stock left
         at the end of the day (for today, the stock right now).
       </p>

@@ -3,7 +3,9 @@ import { supabase } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
 
-const fieldStyle = { display: 'grid', gap: 4, fontSize: 14 }
+const FIELD = 'grid gap-1 text-[14px]'
+const INPUT = 'box-border w-full'
+const CANCEL_BTN = 'border border-(color:--border) bg-white text-(color:--text)'
 
 export default function UpdatePrice({ branch, onBack }) {
   const [prices, setPrices] = useState([])
@@ -73,51 +75,44 @@ export default function UpdatePrice({ branch, onBack }) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ maxWidth: 360, margin: '60px auto', display: 'grid', gap: 12, textAlign: 'left' }}
-    >
+    <form onSubmit={handleSubmit} className="mx-auto my-15 grid max-w-90 gap-3 text-left">
       <h2>Update Price - {branchName(branch)}</h2>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Size
-        <select value={size} onChange={(e) => setSize(e.target.value)} style={{ width: '100%' }}>
+        <select className={INPUT} value={size} onChange={(e) => setSize(e.target.value)}>
           {prices.map((p) => (
             <option key={p.size} value={p.size}>{p.size}</option>
           ))}
         </select>
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Current price
         <input
+          className={INPUT}
           value={current ? Number(current.price).toFixed(2) : ''}
           readOnly
-          style={{ width: '100%' }}
         />
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         New price
         <input
+          className={INPUT}
           type="text"
           inputMode="decimal"
           placeholder="For example 950.00"
           value={newPrice}
           onChange={handlePrice}
           required
-          style={{ width: '100%' }}
         />
       </label>
 
       <button type="submit" disabled={saving || !current}>
         {saving ? 'Updating...' : 'Update price'}
       </button>
-      <button
-        type="button"
-        onClick={onBack}
-        style={{ background: '#ffffff', color: 'var(--text)', border: '1px solid var(--border)' }}
-      >
+      <button type="button" onClick={onBack} className={CANCEL_BTN}>
         Back
       </button>
 

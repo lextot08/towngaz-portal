@@ -5,11 +5,11 @@ import Login from './Login'
 import Admin from './Admin'
 import Staff from './Staff'
 
-const WEBSITE_URL = 'https://your-domain.com' // address of the customer website
+const WEBSITE_URL = 'http://localhost:5173/' // address of the customer website
 
 function StatusScreen({ title, text, link }) {
   return (
-    <div style={{ textAlign: 'center', marginTop: 80 }}>
+    <div className="mt-20 text-center">
       <h2>{title}</h2>
       <p>{text}</p>
       {link && <p><a href={link}>Go to the website</a></p>}

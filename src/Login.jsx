@@ -54,10 +54,7 @@ export default function Login({ initialMode = 'login' }) {
   const isSignUp = mode === 'signup'
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ maxWidth: 320, margin: '60px auto', display: 'grid', gap: 12 }}
-    >
+    <form onSubmit={handleSubmit} className="mx-auto my-[60px] grid max-w-[320px] gap-3">
       <h2>{isSignUp ? 'Create Towngaz Account' : 'Towngaz Login'}</h2>
 
       {isSignUp && (

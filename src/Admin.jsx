@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
-import { confirmDialog } from './Confirm'
+
 import { branchName } from './branches'
 import BranchView from './BranchView'
 import ManageAccounts from './ManageAccounts'
-import Recommendations from './Recommendations'
+
 import AddStock from './AddStock'
 import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'

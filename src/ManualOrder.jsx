@@ -3,7 +3,9 @@ import { supabase } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
 
-const fieldStyle = { display: 'grid', gap: 4, fontSize: 14 }
+const FIELD = 'grid gap-1 text-[14px]'
+const INPUT = 'box-border w-full'
+const CANCEL_BTN = 'border border-(color:--border) bg-white text-(color:--text)'
 
 const TYPE_OPTIONS = [
   { value: 'household', label: 'Household' },
@@ -118,40 +120,37 @@ export default function ManualOrder({ branch, onBack }) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ maxWidth: 360, margin: '60px auto', display: 'grid', gap: 12, textAlign: 'left' }}
-    >
+    <form onSubmit={handleSubmit} className="mx-auto my-15 grid max-w-90 gap-3 text-left">
       <h2>Manual Add Order - {branchName(branch)}</h2>
-      <p style={{ margin: 0, fontSize: 14 }}>For customers who order by phone.</p>
+      <p className="m-0 text-[14px]">For customers who order by phone.</p>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Customer name
-        <input value={fullName} onChange={(e) => setFullName(e.target.value)} required style={{ width: '100%' }} />
+        <input className={INPUT} value={fullName} onChange={(e) => setFullName(e.target.value)} required />
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Customer type
-        <select value={customerType} onChange={(e) => setCustomerType(e.target.value)} style={{ width: '100%' }}>
+        <select className={INPUT} value={customerType} onChange={(e) => setCustomerType(e.target.value)}>
           {TYPE_OPTIONS.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Address
-        <input value={address} onChange={(e) => setAddress(e.target.value)} required style={{ width: '100%' }} />
+        <input className={INPUT} value={address} onChange={(e) => setAddress(e.target.value)} required />
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Contact No.
-        <input type="tel" value={contact} onChange={(e) => setContact(e.target.value)} required style={{ width: '100%' }} />
+        <input className={INPUT} type="tel" value={contact} onChange={(e) => setContact(e.target.value)} required />
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Size
-        <select value={size} onChange={(e) => setSize(e.target.value)} style={{ width: '100%' }}>
+        <select className={INPUT} value={size} onChange={(e) => setSize(e.target.value)}>
           {sizes.map((s) => {
             const row = stock.find((x) => x.item_name === 'LPG Cylinder ' + s)
             const qty = row ? row.quantity : 0
@@ -164,14 +163,15 @@ export default function ManualOrder({ branch, onBack }) {
         </select>
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Price
-        <input value={item ? Number(item.price).toFixed(2) : ''} readOnly style={{ width: '100%' }} />
+        <input className={INPUT} value={item ? Number(item.price).toFixed(2) : ''} readOnly />
       </label>
 
-      <label style={fieldStyle}>
+      <label className={FIELD}>
         Quantity (min {rule.min_quantity}, max {available})
         <input
+          className={INPUT}
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
@@ -180,12 +180,11 @@ export default function ManualOrder({ branch, onBack }) {
           value={quantity}
           onChange={handleQuantity}
           required
-          style={{ width: '100%' }}
         />
       </label>
 
       {orderQty > 0 && item && (
-        <div style={{ background: 'var(--table-head)', borderRadius: 8, padding: 12, display: 'grid', gap: 4 }}>
+        <div className="grid gap-1 rounded-lg bg-brand-light p-3">
           <div>Price each: {unitPrice.toFixed(2)}</div>
           <div>Discount: {discount > 0 ? `-${discount.toFixed(2)}` : '0.00'}</div>
           <div><strong>Total: {total.toFixed(2)}</strong></div>
@@ -195,11 +194,7 @@ export default function ManualOrder({ branch, onBack }) {
       <button type="submit" disabled={saving || !item || available < 1}>
         {saving ? 'Adding...' : 'Add order'}
       </button>
-      <button
-        type="button"
-        onClick={onBack}
-        style={{ background: '#ffffff', color: 'var(--text)', border: '1px solid var(--border)' }}
-      >
+      <button type="button" onClick={onBack} className={CANCEL_BTN}>
         Back
       </button>
 
