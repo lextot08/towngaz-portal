@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react'
 import { supabase, signupClient } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
+import {
+  EMAIL_DOMAIN,
+  buildEmail,
+  passwordError,
+  filterName,
+  nameError,
+  filterContact,
+  contactError,
+} from './accountRules'
 
 const emptyForm = {
   fullName: '',
@@ -16,7 +25,7 @@ const emptyForm = {
 const FIELD = 'grid gap-1 text-[14px]'
 const CANCEL_BTN = 'flex-1 border border-(color:--border) bg-white text-(color:--text)'
 
-export default function ManageAccounts({ mode, branch }) {
+export default function ManageAccounts({ mode, branch, top = null, hidePending = false }) {
   const isAdmin = mode === 'admin'
   const [accounts, setAccounts] = useState([])
   const [filterBranch, setFilterBranch] = useState('')
@@ -74,6 +83,16 @@ export default function ManageAccounts({ mode, branch }) {
       setMessage('Please select a branch')
       return
     }
+    const emailResult = buildEmail(form.email)
+    if (emailResult.error) {
+      setMessage(emailResult.error)
+      return
+    }
+    const passwordProblem = passwordError(form.password)
+    if (passwordProblem) {
+      setMessage(passwordProblem)
+      return
+    }
     const name = form.fullName.trim()
     if (!(await confirmDialog(`Are you sure you want to create this ${role} account for ${name}?`))) {
       return
@@ -81,7 +100,7 @@ export default function ManageAccounts({ mode, branch }) {
 
     setSaving(true)
     const { data, error } = await signupClient.auth.signUp({
-      email: form.email.trim(),
+      email: emailResult.email,
       password: form.password,
       options: {
         data: {
@@ -117,7 +136,7 @@ export default function ManageAccounts({ mode, branch }) {
     if (approveError) {
       setMessage(`Account created, but it could not be approved: ${approveError.message}`)
     } else {
-      setMessage(`Account created for ${form.email.trim()}`)
+      setMessage(`Account created for ${emailResult.email}`)
       setEditing(null)
     }
     loadAccounts()
@@ -153,6 +172,16 @@ export default function ManageAccounts({ mode, branch }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setMessage('')
+    const nameProblem = nameError(form.fullName)
+    if (nameProblem) {
+      setMessage(nameProblem)
+      return
+    }
+    const contactProblem = contactError(form.contactNumber)
+    if (contactProblem) {
+      setMessage(contactProblem)
+      return
+    }
     if (editing === 'new') await createAccount()
     else await saveChanges()
   }
@@ -174,11 +203,13 @@ export default function ManageAccounts({ mode, branch }) {
   }
 
   const isNew = editing === 'new'
+  const visibleAccounts = accounts.filter((a) => !hidePending || a.status !== 'pending')
 
   return (
     <div>
       <h2>Manage Account</h2>
       {message && <p>{message}</p>}
+      {top}
 
       <div className="mb-4">
         {isAdmin && (
@@ -204,7 +235,11 @@ export default function ManageAccounts({ mode, branch }) {
 
           <label className={FIELD}>
             Full name
-            <input value={form.fullName} onChange={setField('fullName')} required />
+            <input
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: filterName(e.target.value) })}
+              required
+            />
           </label>
 
           <label className={FIELD}>
@@ -214,7 +249,14 @@ export default function ManageAccounts({ mode, branch }) {
 
           <label className={FIELD}>
             Contact No.
-            <input type="tel" value={form.contactNumber} onChange={setField('contactNumber')} required />
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={11}
+              value={form.contactNumber}
+              onChange={(e) => setForm({ ...form, contactNumber: filterContact(e.target.value) })}
+              required
+            />
           </label>
 
           {isAdmin && (
@@ -231,13 +273,32 @@ export default function ManageAccounts({ mode, branch }) {
 
           {isNew ? (
             <>
-              <label className={FIELD}>
+              <div className={FIELD}>
                 Email
-                <input type="email" value={form.email} onChange={setField('email')} required />
-              </label>
+                <div className="flex overflow-hidden rounded-md border border-(color:--border) bg-white">
+                  <input
+                    className="min-w-0 flex-1 rounded-none border-0 p-2"
+                    placeholder="Email name"
+                    value={form.email}
+                    onChange={setField('email')}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    required
+                  />
+                  <span className="flex items-center bg-brand-light px-3 whitespace-nowrap">
+                    {EMAIL_DOMAIN}
+                  </span>
+                </div>
+              </div>
               <label className={FIELD}>
-                Password (min 6 characters)
-                <input type="password" value={form.password} onChange={setField('password')} required minLength={6} />
+                Password (8 or more, letters and numbers only)
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={setField('password')}
+                  required
+                  minLength={8}
+                />
               </label>
             </>
           ) : (
@@ -272,7 +333,7 @@ export default function ManageAccounts({ mode, branch }) {
             </tr>
           </thead>
           <tbody>
-            {accounts.map((a) => (
+            {visibleAccounts.map((a) => (
               <tr key={a.id}>
                 <td>{a.full_name}</td>
                 <td>{a.email}</td>
@@ -287,7 +348,7 @@ export default function ManageAccounts({ mode, branch }) {
                 </td>
               </tr>
             ))}
-            {accounts.length === 0 && (
+            {visibleAccounts.length === 0 && (
               <tr><td colSpan={isAdmin ? 8 : 6}>No accounts found</td></tr>
             )}
           </tbody>

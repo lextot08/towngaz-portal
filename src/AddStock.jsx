@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
+import { peso } from './money'
 
 const FIELD = 'grid gap-1 text-[14px]'
 const INPUT = 'box-border w-full'
@@ -91,7 +92,7 @@ export default function AddStock({ branch, onBack }) {
         Price
         <input
           className={INPUT}
-          value={selected ? Number(selected.price).toFixed(2) : ''}
+          value={selected ? peso(selected.price) : ''}
           readOnly
         />
       </label>

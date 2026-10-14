@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
+import { peso } from './money'
 
 const FIELD = 'grid gap-1 text-[14px]'
 const INPUT = 'box-border w-full'
@@ -13,12 +14,17 @@ const TYPE_OPTIONS = [
   { value: 'rto', label: 'Retail Outlet' },
 ]
 
+const SOURCE_OPTIONS = [
+  { value: 'phone', label: 'Phone' },
+  { value: 'walkin', label: 'Walk-in' },
+]
+
 export default function ManualOrder({ branch, onBack }) {
   const [sizes, setSizes] = useState([])
   const [stock, setStock] = useState([])
-  const [rules, setRules] = useState({})
   const [size, setSize] = useState('')
   const [customerType, setCustomerType] = useState('household')
+  const [source, setSource] = useState('phone')
   const [fullName, setFullName] = useState('')
   const [address, setAddress] = useState('')
   const [contact, setContact] = useState('')
@@ -35,9 +41,6 @@ export default function ManualOrder({ branch, onBack }) {
       .from('stock')
       .select('item_name, quantity, price')
       .eq('branch', branch)
-    const rulesResult = await supabase
-      .from('customer_types')
-      .select('type, label, min_quantity, discount_per_unit')
 
     if (pricesResult.error) {
       setMessage(pricesResult.error.message)
@@ -48,9 +51,6 @@ export default function ManualOrder({ branch, onBack }) {
     }
     if (stockResult.error) setMessage(stockResult.error.message)
     else setStock(stockResult.data)
-    if (!rulesResult.error) {
-      setRules(Object.fromEntries(rulesResult.data.map((r) => [r.type, r])))
-    }
   }
 
   useEffect(() => {
@@ -59,12 +59,11 @@ export default function ManualOrder({ branch, onBack }) {
 
   const item = stock.find((s) => s.item_name === 'LPG Cylinder ' + size)
   const available = item ? item.quantity : 0
-  const rule = rules[customerType] || { label: 'Household', min_quantity: 1, discount_per_unit: 0 }
+  const typeLabel = TYPE_OPTIONS.find((t) => t.value === customerType)?.label || 'Household'
 
   const unitPrice = item ? Number(item.price) : 0
   const orderQty = Number(quantity) || 0
-  const discount = rule.discount_per_unit * orderQty
-  const total = unitPrice * orderQty - discount
+  const total = unitPrice * orderQty
 
   // only digits are allowed: no minus sign, decimal point, or letters
   const handleQuantity = (e) => setQuantity(e.target.value.replace(/\D/g, ''))
@@ -78,19 +77,13 @@ export default function ManualOrder({ branch, onBack }) {
       setMessage('Quantity must be a whole number of at least 1')
       return
     }
-    if (qty < rule.min_quantity) {
-      setMessage(
-        `Minimum order for ${rule.label} customers is ${rule.min_quantity} cylinder${rule.min_quantity > 1 ? 's' : ''}`
-      )
-      return
-    }
     if (qty > available) {
       setMessage(`Only ${available} in stock for this size`)
       return
     }
 
     const name = fullName.trim()
-    if (!(await confirmDialog(`Are you sure you want to add this ${rule.label} order: ${qty} x LPG Cylinder ${size} for ${name}?`))) {
+    if (!(await confirmDialog(`Are you sure you want to add this ${typeLabel} order: ${qty} x LPG Cylinder ${size} for ${name}?`))) {
       return
     }
 
@@ -102,6 +95,7 @@ export default function ManualOrder({ branch, onBack }) {
       p_address: address.trim(),
       p_contact: contact.trim(),
       p_customer_type: customerType,
+      p_source: source,
     })
     setSaving(false)
 
@@ -122,11 +116,20 @@ export default function ManualOrder({ branch, onBack }) {
   return (
     <form onSubmit={handleSubmit} className="mx-auto my-15 grid max-w-90 gap-3 text-left">
       <h2>Manual Add Order - {branchName(branch)}</h2>
-      <p className="m-0 text-[14px]">For customers who order by phone.</p>
+      <p className="m-0 text-[14px]">For customers who order by phone or walk in.</p>
 
       <label className={FIELD}>
         Customer name
         <input className={INPUT} value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+      </label>
+
+      <label className={FIELD}>
+        Order via
+        <select className={INPUT} value={source} onChange={(e) => setSource(e.target.value)}>
+          {SOURCE_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
       </label>
 
       <label className={FIELD}>
@@ -165,11 +168,11 @@ export default function ManualOrder({ branch, onBack }) {
 
       <label className={FIELD}>
         Price
-        <input className={INPUT} value={item ? Number(item.price).toFixed(2) : ''} readOnly />
+        <input className={INPUT} value={item ? peso(item.price) : ''} readOnly />
       </label>
 
       <label className={FIELD}>
-        Quantity (min {rule.min_quantity}, max {available})
+        Quantity (max {available})
         <input
           className={INPUT}
           type="text"
@@ -185,9 +188,11 @@ export default function ManualOrder({ branch, onBack }) {
 
       {orderQty > 0 && item && (
         <div className="grid gap-1 rounded-lg bg-brand-light p-3">
-          <div>Price each: {unitPrice.toFixed(2)}</div>
-          <div>Discount: {discount > 0 ? `-${discount.toFixed(2)}` : '0.00'}</div>
-          <div><strong>Total: {total.toFixed(2)}</strong></div>
+          <div>Price each: {peso(unitPrice)}</div>
+          <div><strong>Total: {peso(total)}</strong></div>
+          <div className="text-[12px] text-gray-600">
+            A discount, if any, is added later with Edit in the Daily Sales Report.
+          </div>
         </div>
       )}
 

@@ -3,13 +3,17 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
 
-@theme {
+@theme static {
   --color-brand: #166534;
   --color-brand-dark: #14532d;
   --color-brand-soft: #2f7d4f;
   --color-brand-light: #dcecdf;
+  --color-brand-pine: #005746;
+  --color-brand-pine-light: #087665;
+  --color-brand-teal: #044a3e;
+  --color-brand-mint: #70e6dc;
+  --color-brand-red: #a80202;
 }
-
 /* Base styles: Tailwind classes can override these */
 @layer base {
   :root {

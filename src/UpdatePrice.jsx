@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
+import { peso } from './money'
 
 const FIELD = 'grid gap-1 text-[14px]'
 const INPUT = 'box-border w-full'
@@ -54,10 +55,10 @@ export default function UpdatePrice({ branch, onBack }) {
 
     const value = Number(newPrice)
     if (!(value > 0)) {
-      setMessage('Price must be more than 0')
+      setMessage('Price must be more than ₱0')
       return
     }
-    if (!(await confirmDialog(`Are you sure you want to change the price of LPG Cylinder ${size} to ${value.toFixed(2)}?`))) {
+    if (!(await confirmDialog(`Are you sure you want to change the price of LPG Cylinder ${size} to ${peso(value)}?`))) {
       return
     }
 
@@ -69,7 +70,7 @@ export default function UpdatePrice({ branch, onBack }) {
       setMessage(error.message)
       return
     }
-    setMessage(`Price of LPG Cylinder ${size} is now ${value.toFixed(2)}`)
+    setMessage(`Price of LPG Cylinder ${size} is now ${peso(value)}`)
     setNewPrice('')
     loadPrices()
   }
@@ -91,22 +92,25 @@ export default function UpdatePrice({ branch, onBack }) {
         Current price
         <input
           className={INPUT}
-          value={current ? Number(current.price).toFixed(2) : ''}
+          value={current ? peso(current.price) : ''}
           readOnly
         />
       </label>
 
       <label className={FIELD}>
         New price
-        <input
-          className={INPUT}
-          type="text"
-          inputMode="decimal"
-          placeholder="For example 950.00"
-          value={newPrice}
-          onChange={handlePrice}
-          required
-        />
+        <div className="flex overflow-hidden rounded-md border border-(color:--border) bg-white">
+          <span className="flex items-center bg-brand-light px-3">₱</span>
+          <input
+            className="min-w-0 flex-1 rounded-none border-0 p-2"
+            type="text"
+            inputMode="decimal"
+            placeholder="For example 950.00"
+            value={newPrice}
+            onChange={handlePrice}
+            required
+          />
+        </div>
       </label>
 
       <button type="submit" disabled={saving || !current}>
