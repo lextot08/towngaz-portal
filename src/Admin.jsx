@@ -18,6 +18,7 @@ const OVERALL = 0 // "Overall" under Branches: the total of all branches
 export default function Admin({ user }) {
   const [tab, setTab] = useState('home')
   const [branch, setBranch] = useState(OVERALL) // "Overall" or the branch chosen under Branches
+  const [tankView, setTankView] = useState('borrowed') // the page chosen under Tank Count
   const [view, setView] = useState('main')
   const [pending, setPending] = useState([])
   const [accountsVersion, setAccountsVersion] = useState(0)
@@ -61,16 +62,26 @@ export default function Admin({ user }) {
     return <UpdatePrice branch={ADMIN_BRANCH} onBack={() => setView('main')} />
   }
 
-  // clicking Branches from another page starts at Overall
+  // clicking Branches from another page starts at Overall, and Tank Count at Borrowed
   const selectTab = (key) => {
     if (key === 'branches' && tab !== 'branches') setBranch(OVERALL)
+    if (key === 'tankcount' && tab !== 'tankcount') setTankView('borrowed')
     setTab(key)
   }
 
-  const selectBranch = (parentKey, branchId) => {
-    setBranch(Number(branchId))
-    setTab('branches')
+  // a smaller button under Branches or Tank Count
+  const selectChild = (parentKey, childKey) => {
+    if (parentKey === 'branches') setBranch(Number(childKey))
+    else setTankView(childKey)
+    setTab(parentKey)
   }
+
+  const TANK_VIEWS = [
+    { key: 'borrowed', label: 'Borrowed' },
+    { key: 'returned', label: 'Returned' },
+    { key: 'sell', label: 'Sell' },
+    { key: 'buy', label: 'Buy' },
+  ]
 
   const items = [
     { key: 'home', label: 'Admin Home', icon: 'home' },
@@ -83,6 +94,9 @@ export default function Admin({ user }) {
         ...BRANCHES.map((b) => ({ key: String(b.id), label: b.name })),
       ],
     },
+    { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
+    { key: 'yearend', label: 'Year End Report', icon: 'file' },
+    { key: 'tankcount', label: 'Tank Count', icon: 'box', subItems: TANK_VIEWS },
     { key: 'recommendation', label: 'Recommendation', icon: 'chart' },
     { key: 'analytics', label: 'Analytics', icon: 'trending' },
     {
@@ -134,8 +148,8 @@ export default function Admin({ user }) {
       items={items}
       active={tab}
       onSelect={selectTab}
-      activeChild={String(branch)}
-      onSelectChild={selectBranch}
+      activeChild={tab === 'tankcount' ? tankView : String(branch)}
+      onSelectChild={selectChild}
     >
       {tab === 'home' && (
         <div>
@@ -152,6 +166,19 @@ export default function Admin({ user }) {
       )}
 
       {tab === 'branches' && <BranchView branch={branch} />}
+
+      {/* blank for now */}
+      {tab === 'monthly' && <h1 className="mt-0 mb-4 text-2xl">Monthly Sales Report</h1>}
+
+      {/* blank for now */}
+      {tab === 'yearend' && <h1 className="mt-0 mb-4 text-2xl">Year End Report</h1>}
+
+      {/* blank for now */}
+      {tab === 'tankcount' && (
+        <h1 className="mt-0 mb-4 text-2xl">
+          Tank Count - {TANK_VIEWS.find((v) => v.key === tankView).label}
+        </h1>
+      )}
 
       {tab === 'recommendation' && <Recommendations mode="admin" />}
 

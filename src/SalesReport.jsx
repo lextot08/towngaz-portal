@@ -70,9 +70,16 @@ const toDisplayRows = (list) => {
   return result
 }
 
+const DELIVERY_OPTIONS = ['preparing', 'out_for_delivery', 'delivered']
+
+// the delivery status shown and sent when editing ("not started" becomes "preparing")
+const deliveryOf = (o) => (o.delivery_status === 'not_started' ? 'preparing' : o.delivery_status)
+
+// amount before the discount, and the discount, of a row (one order or a multiple order)
+const grossOf = (list) => list.reduce((sum, x) => sum + Number(x.total_price), 0)
+const discountOf = (list) => list.reduce((sum, x) => sum + Number(x.discount || 0), 0)
+
 // Tailwind class groups used in several places
-const FIELD = 'grid gap-1 text-[14px]'
-const CANCEL_BTN = 'flex-1 border border-(color:--border) bg-white text-(color:--text)'
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
 const SOLID = 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine-light'
@@ -94,7 +101,7 @@ const WIDTHS_VIEW = { time: 7, name: 15, address: 16, type: 9, unit: 8, amount: 
 const SIZES_SHARE = 20
 
 // A text box that gets taller when the text is long, so the table keeps its size
-function GrowBox({ value, onChange, placeholder }) {
+function GrowBox({ value, onChange, placeholder, onKeyDown, ...rest }) {
   const ref = useRef(null)
   useLayoutEffect(() => {
     const el = ref.current
@@ -112,7 +119,9 @@ function GrowBox({ value, onChange, placeholder }) {
       onChange={onChange}
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.preventDefault() // the text only wraps, there is no new line
+        onKeyDown?.(e)
       }}
+      {...rest}
     />
   )
 }
@@ -135,16 +144,10 @@ export default function SalesReport({
   const setReportDate = onDateChange ?? setOwnDate
 
   const [extra, setExtra] = useState({ sizes: [], stock: [] })
-  const [editing, setEditing] = useState(null) // the orders of the row being edited (a list)
-  const [editName, setEditName] = useState('')
-  const [editRemarks, setEditRemarks] = useState('')
-  const [editDiscount, setEditDiscount] = useState('') // total discount in pesos, empty = none
-  const [editDelivery, setEditDelivery] = useState('preparing')
-  const [addNew, setAddNew] = useState(false) // also add a new order for this customer
-  const [newSize, setNewSize] = useState('')
-  const [newQty, setNewQty] = useState('')
-  const [newType, setNewType] = useState('household')
-  const [newSource, setNewSource] = useState('walkin')
+  // the cell being edited: { key: row key, field: 'name' | 'remarks' | 'discount' | 'delivery', value }
+  const [cell, setCell] = useState(null)
+  const savingCell = useRef(false) // stops Enter and clicking away from saving twice
+  const cancelledCell = useRef(false) // Esc was pressed: do not save when the box closes
   const [newRow, setNewRow] = useState(null) // the empty row of "Add order"
   const [savingNew, setSavingNew] = useState(false)
   const [message, setMessage] = useState('')
@@ -170,9 +173,9 @@ export default function SalesReport({
     loadExtra()
   }, [branch, canEdit])
 
-  // close the edit form and the new row when another branch is chosen
+  // close the edited cell and the new row when another branch is chosen
   useEffect(() => {
-    setEditing(null)
+    setCell(null)
     setNewRow(null)
     setMessage('')
   }, [branch])
@@ -192,6 +195,8 @@ export default function SalesReport({
   const sizeCols = Math.max(sizeList.length, 1)
   const totalCols = 4 + sizeCols + 3 + (canEdit ? 1 : 0)
   const W = canEdit ? WIDTHS_EDIT : WIDTHS_VIEW
+  // a cell that opens for editing on double-click
+  const EDITABLE = canEdit ? 'cursor-cell hover:bg-black/[0.03]' : ''
 
   const pendingOrders = orders.filter((o) => o.status === 'pending')
   const acceptedOrders = orders.filter((o) => o.status === 'accepted')
@@ -201,22 +206,8 @@ export default function SalesReport({
   const dayOrders = acceptedOrders.filter((o) => localDateString(o.accepted_at) === shownDate)
   const reportRows = [...pendingOrders, ...dayOrders]
   const displayRows = toDisplayRows(reportRows)
-  const dayTotal = dayOrders.reduce((sum, o) => sum + Number(o.total_price), 0)
-
-  // numbers for the "add a new order" part of the Edit form
-  const newStockRow = stockOf(newSize)
-  const newAvailable = newStockRow ? newStockRow.quantity : 0
-
-  // numbers for the Edit form (the whole row: one order, or all sizes of a multiple order)
-  const editAmount = editing
-    ? editing.reduce((sum, x) => sum + x.quantity * Number(x.unit_price), 0)
-    : 0
-  const editCurrentDiscount = editing
-    ? editing.reduce((sum, x) => sum + Number(x.discount || 0), 0)
-    : 0
-  const typedDiscount = Number(editDiscount)
-  const discountIsValid =
-    editDiscount !== '' && Number.isFinite(typedDiscount) && typedDiscount > 0 && typedDiscount < editAmount
+  // total sales of the day, after the discounts
+  const dayTotal = grossOf(dayOrders) - discountOf(dayOrders)
 
   // numbers for the new row ("Add order"): the sizes that have a quantity
   const nItems = newRow
@@ -240,6 +231,7 @@ export default function SalesReport({
   // ---- Add order: an empty row at the top of the table ----
   const startNewRow = () => {
     setMessage('')
+    setCell(null)
     setReportDate('') // a new order is always for today
     setNewRow({
       time: new Date(), // filled in automatically
@@ -322,104 +314,116 @@ export default function SalesReport({
     if (ok) setNewRow(null)
   }
 
-  // ---- Edit an existing row (one order, or all sizes of a multiple order) ----
-  const startEdit = (list) => {
-    const base = list[0]
-    const currentDiscount = list.reduce((sum, x) => sum + Number(x.discount || 0), 0)
+  // ---- Edit like a spreadsheet: double-click a cell, Enter (or clicking away) saves, Esc cancels ----
+  const startCell = (g, field) => {
+    if (!canEdit || savingCell.current || isEditing(g, field)) return
+    const o = g.orders[0]
+    const discount = discountOf(g.orders)
+    const value =
+      field === 'name'
+        ? o.customer_name || ''
+        : field === 'remarks'
+          ? o.remarks || ''
+          : field === 'discount'
+            ? discount > 0
+              ? discount.toFixed(2)
+              : ''
+            : deliveryOf(o)
+    cancelledCell.current = false
     setMessage('')
-    setEditing(list)
-    setEditName(base.customer_name || '')
-    setEditRemarks(base.remarks || '')
-    setEditDiscount(currentDiscount > 0 ? currentDiscount.toFixed(2) : '')
-    setEditDelivery(base.delivery_status === 'not_started' ? 'preparing' : base.delivery_status)
-    setAddNew(false)
-    setNewSize(extra.sizes[0] || '')
-    setNewQty('')
-    setNewType(base.customer_type || 'household')
-    setNewSource('walkin')
+    setCell({ key: g.key, field, value })
   }
 
-  // only digits are allowed: no minus sign, decimal point, or letters
-  const handleNewQty = (e) => setNewQty(e.target.value.replace(/\D/g, ''))
+  const setCellValue = (value) => setCell((c) => ({ ...c, value }))
 
-  const handleDiscount = (e) => setEditDiscount(cleanMoney(e.target.value))
+  const cancelCell = () => {
+    cancelledCell.current = true
+    setCell(null)
+  }
 
-  const saveEdit = async (e) => {
-    e.preventDefault()
-    setMessage('')
-
-    // discount: empty means no discount; otherwise it must be more than 0 and less than the amount
-    let discountToSend = 0
-    if (editDiscount !== '') {
-      if (!Number.isFinite(typedDiscount) || typedDiscount <= 0) {
-        setMessage('Discount must be more than ₱0. Leave it empty for no discount.')
-        return
-      }
-      if (typedDiscount >= editAmount) {
-        setMessage(`Discount must be less than the order amount (${peso(editAmount)})`)
-        return
-      }
-      discountToSend = typedDiscount
+  // Saves the edited cell. The other values of the row are sent unchanged.
+  const saveCell = async (g, value = cell?.value) => {
+    if (!cell || cancelledCell.current || savingCell.current) return
+    const list = g.orders
+    const o = list[0]
+    const amount = grossOf(list)
+    const oldDiscount = discountOf(list)
+    const next = {
+      name: o.customer_name || '',
+      remarks: o.remarks || '',
+      delivery: deliveryOf(o),
+      discount: oldDiscount,
     }
 
-    const qty = Number(newQty)
-    if (addNew) {
-      if (!newSize) {
-        setMessage('Please select a size for the new order')
+    if (cell.field === 'name') {
+      if (!value.trim()) {
+        setMessage('Customer name is required')
         return
       }
-      if (!Number.isInteger(qty) || qty < 1) {
-        setMessage('Quantity of the new order must be a whole number of at least 1')
+      next.name = value.trim()
+    } else if (cell.field === 'remarks') {
+      next.remarks = value.trim()
+    } else if (cell.field === 'delivery') {
+      next.delivery = value
+    } else {
+      // discount: empty or 0 means no discount, otherwise it must be less than the amount
+      const discount = value === '' ? 0 : Number(value)
+      if (!Number.isFinite(discount)) {
+        setMessage('Please type a valid discount, for example 15.50')
         return
       }
-      if (qty > newAvailable) {
-        setMessage(`Only ${newAvailable} in stock for this size`)
+      if (discount >= amount) {
+        setMessage(`Discount must be less than the order amount (${peso(amount)})`)
         return
       }
+      next.discount = discount
     }
 
-    const discountText =
-      discountToSend > 0
-        ? ` A discount of ${peso(discountToSend)} will be applied.`
-        : editCurrentDiscount > 0
-          ? ' The discount will be removed.'
-          : ''
-    const question = addNew
-      ? `Are you sure you want to save these changes and add a new ${TYPE_LABELS[newType]} order (${newSize} x ${qty}) for this customer?${discountText}`
-      : `Are you sure you want to save these changes?${discountText}`
-    if (!(await confirmDialog(question))) return
+    const unchanged =
+      next.name === (o.customer_name || '') &&
+      next.remarks === (o.remarks || '') &&
+      next.delivery === deliveryOf(o) &&
+      Math.abs(next.discount - oldDiscount) < 0.005
+    if (unchanged) {
+      setCell(null)
+      return
+    }
 
+    savingCell.current = true
     const ok = await callFunction('edit_orders', {
-      p_order_ids: editing.map((x) => x.id),
-      p_name: editName,
-      p_remarks: editRemarks,
-      p_delivery_status: editDelivery,
-      p_discount: discountToSend,
+      p_order_ids: list.map((x) => x.id),
+      p_name: next.name,
+      p_remarks: next.remarks,
+      p_delivery_status: next.delivery,
+      p_discount: next.discount,
     })
-    if (!ok) return
-
-    if (addNew) {
-      const added = await callFunction('add_additional_order', {
-        p_from_order_id: editing[0].id,
-        p_size: newSize,
-        p_quantity: qty,
-        p_customer_type: newType,
-        p_source: newSource,
-      })
-      if (!added) return
-    }
-    setEditing(null)
+    savingCell.current = false
+    if (ok) setCell(null)
   }
+
+  // keys for the text boxes inside a cell: Enter saves (by leaving the box), Esc cancels
+  const cellKeys = (e) => {
+    if (e.key === 'Enter') e.currentTarget.blur()
+    if (e.key === 'Escape') cancelCell()
+  }
+
+  // puts the cursor at the end of the text when the box opens
+  const cursorToEnd = (e) => {
+    const len = e.currentTarget.value.length
+    e.currentTarget.setSelectionRange(len, len)
+  }
+
+  const isEditing = (g, field) => cell && cell.key === g.key && cell.field === field
 
   // delete a row: one order, or all sizes of a multiple order
-  const deleteOrders = async (list) => {
+  const deleteOrders = async (key, list) => {
     const returnsStock = list.some((x) => x.status === 'accepted' && x.delivery_status !== 'delivered')
     const what = list.map((x) => `${sizeOf(x.item_name)} x ${x.quantity}`).join(', ')
     const text =
       `Are you sure you want to delete this order (${what} for ${list[0].customer_name})?` +
       (returnsStock ? ' The cylinders will be returned to stock.' : '')
     if (!(await confirmDialog(text))) return
-    if (editing && editing.some((x) => list.some((y) => y.id === x.id))) setEditing(null)
+    if (cell && cell.key === key) setCell(null)
     await callFunction('delete_orders', { p_order_ids: list.map((x) => x.id) })
   }
 
@@ -451,138 +455,14 @@ export default function SalesReport({
 
       <p className="mt-0 text-[14px]">
         Orders waiting to be accepted are shown first (highlighted), whatever the date.
+        {canEdit && (
+          <>
+            {' '}
+            Double-click a Customer name, delivery status, Amount (for the discount), or Expenses
+            cell to edit it. Press Enter to save or Esc to cancel.
+          </>
+        )}
       </p>
-
-      {canEdit && editing && (
-        <form
-          onSubmit={saveEdit}
-          className="mb-6 grid max-w-90 gap-2.5 rounded-xl border border-(color:--border) bg-white p-5 text-left"
-        >
-          <h3 className="m-0">
-            {editing.length > 1 ? 'Edit order' : `Edit order #${editing[0].id}`}
-          </h3>
-          <p className="m-0 text-[14px]">
-            {editing.map((x) => `${sizeOf(x.item_name)} x ${x.quantity}`).join(', ')} ·{' '}
-            {peso(editAmount)}
-          </p>
-
-          <label className={FIELD}>
-            Customer name
-            <input value={editName} onChange={(e) => setEditName(e.target.value)} required />
-          </label>
-
-          <label className={FIELD}>
-            Remarks
-            <input
-              value={editRemarks}
-              onChange={(e) => setEditRemarks(e.target.value)}
-              placeholder="For example: paid, call before delivery"
-            />
-          </label>
-
-          <label className={FIELD}>
-            Discount (total for this order)
-            <div className="flex overflow-hidden rounded-md border border-(color:--border) bg-white">
-              <span className="flex items-center bg-brand-light px-3">₱</span>
-              <input
-                className="min-w-0 flex-1 rounded-none border-0 p-2"
-                type="text"
-                inputMode="decimal"
-                placeholder="For example: 15.50"
-                value={editDiscount}
-                onChange={handleDiscount}
-              />
-            </div>
-            <span className="text-[12px] text-gray-500">
-              {discountIsValid
-                ? `Amount after discount: ${peso(editAmount - typedDiscount)}`
-                : 'Leave empty for no discount. More than ₱0, up to 2 decimals.'}
-            </span>
-          </label>
-
-          {editing[0].status === 'accepted' && (
-            <label className={FIELD}>
-              Delivery status
-              <select value={editDelivery} onChange={(e) => setEditDelivery(e.target.value)}>
-                {['preparing', 'out_for_delivery', 'delivered'].map((s) => (
-                  <option key={s} value={s}>{DELIVERY_LABELS[s]}</option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          <label className="flex items-center gap-2 text-[14px] font-semibold">
-            <input
-              type="checkbox"
-              className="size-4 p-0"
-              checked={addNew}
-              onChange={(e) => setAddNew(e.target.checked)}
-            />
-            Also add a new order for this customer
-          </label>
-
-          {addNew && (
-            <div className="grid gap-2.5 rounded-lg bg-brand-light p-3">
-              <label className={FIELD}>
-                Size
-                <select value={newSize} onChange={(e) => setNewSize(e.target.value)}>
-                  {extra.sizes.map((s) => {
-                    const qty = stockOf(s)?.quantity ?? 0
-                    return (
-                      <option key={s} value={s} disabled={qty < 1}>
-                        {s} ({qty < 1 ? 'out of stock' : `${qty} in stock`})
-                      </option>
-                    )
-                  })}
-                </select>
-              </label>
-
-              <label className={FIELD}>
-                Customer type for this order
-                <select value={newType} onChange={(e) => setNewType(e.target.value)}>
-                  {TYPE_OPTIONS.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={FIELD}>
-                Quantity (max {newAvailable})
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  placeholder="Whole number, 1 or more"
-                  value={newQty}
-                  onChange={handleNewQty}
-                />
-              </label>
-
-              <label className={FIELD}>
-                Order via
-                <select value={newSource} onChange={(e) => setNewSource(e.target.value)}>
-                  <option value="walkin">Walk-in</option>
-                  <option value="phone">Phone</option>
-                </select>
-              </label>
-
-              <p className="m-0 text-[13px]">
-                It is saved as a new row named &quot;
-                {editName.replace(/\s*\(additional\)$/, '')} (additional)&quot;. To give it a
-                discount, edit that row afterwards.
-              </p>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <button type="submit" className="flex-1">Save changes</button>
-            <button type="button" onClick={() => setEditing(null)} className={CANCEL_BTN}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
 
       <div
         className={
@@ -612,7 +492,7 @@ export default function SalesReport({
               <th colSpan={sizeCols} className="text-center">Size</th>
               <th rowSpan={2}>Unit cost</th>
               <th rowSpan={2}>Amount</th>
-              <th rowSpan={2}>Remarks</th>
+              <th rowSpan={2}>Expenses</th>
               {canEdit && <th rowSpan={2}>Action</th>}
             </tr>
             <tr>
@@ -709,7 +589,7 @@ export default function SalesReport({
                 </td>
                 <td>
                   <GrowBox
-                    placeholder="Remarks"
+                    placeholder="Expenses"
                     value={newRow.remarks}
                     onChange={setNew('remarks')}
                   />
@@ -730,17 +610,59 @@ export default function SalesReport({
             {displayRows.map((g) => {
               const o = g.orders[0]
               const many = g.orders.length > 1
-              const amount = g.orders.reduce((sum, x) => sum + Number(x.total_price), 0)
-              const discount = g.orders.reduce((sum, x) => sum + Number(x.discount || 0), 0)
+              const amount = grossOf(g.orders)
+              const discount = discountOf(g.orders)
+              // the discount being typed, and the amount after it (updates while typing)
+              const typedDiscount = isEditing(g, 'discount') ? Number(cell.value) || 0 : discount
+              const netAmount = amount - (typedDiscount < amount ? typedDiscount : 0)
               return (
                 <tr key={g.key} className={o.status === 'pending' ? 'bg-[#fff7e0]' : ''}>
                   <td>{timeText(o.status === 'pending' ? o.created_at : o.accepted_at)}</td>
-                  <td>
-                    {o.customer_name}
-                    {SOURCE_LABELS[o.source] || ''}
+                  <td className={EDITABLE} onDoubleClick={() => startCell(g, 'name')}>
+                    {isEditing(g, 'name') ? (
+                      <GrowBox
+                        autoFocus
+                        onFocus={cursorToEnd}
+                        value={cell.value}
+                        onChange={(e) => setCellValue(e.target.value)}
+                        onKeyDown={cellKeys}
+                        onBlur={() => saveCell(g)}
+                      />
+                    ) : (
+                      <>
+                        {o.customer_name}
+                        {SOURCE_LABELS[o.source] || ''}
+                      </>
+                    )}
                     {o.status === 'pending' && (
                       <div className="text-[12px] text-orange-700">Waiting for acceptance</div>
                     )}
+                    {o.status === 'accepted' &&
+                      (isEditing(g, 'delivery') ? (
+                        <select
+                          autoFocus
+                          className={`${ROW_INPUT} mt-1`}
+                          value={cell.value}
+                          onChange={(e) => saveCell(g, e.target.value)}
+                          onKeyDown={(e) => e.key === 'Escape' && cancelCell()}
+                          onBlur={cancelCell}
+                          onDoubleClick={(e) => e.stopPropagation()}
+                        >
+                          {DELIVERY_OPTIONS.map((s) => (
+                            <option key={s} value={s}>{DELIVERY_LABELS[s]}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div
+                          className="text-[12px] text-gray-500"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation() // edit the delivery status, not the name
+                            startCell(g, 'delivery')
+                          }}
+                        >
+                          {DELIVERY_LABELS[o.delivery_status] || ''}
+                        </div>
+                      ))}
                   </td>
                   <td>{o.customer_address || ''}</td>
                   <td>{TYPE_LABELS[o.customer_type] || 'Household'}</td>
@@ -761,21 +683,55 @@ export default function SalesReport({
                         ))
                       : peso(o.unit_price)}
                   </td>
-                  <td>
-                    {peso(amount)}
-                    {discount > 0 && (
-                      <div className="text-[12px] text-gray-500">Discount {peso(discount)}</div>
+                  <td className={EDITABLE} onDoubleClick={() => startCell(g, 'discount')}>
+                    <div className={typedDiscount > 0 ? 'font-semibold' : ''}>{peso(netAmount)}</div>
+                    {isEditing(g, 'discount') ? (
+                      <div className="mt-1 flex overflow-hidden rounded-md border border-(color:--border) bg-white">
+                        <span className="flex items-center bg-white px-1.5 text-[12px]">₱</span>
+                        <input
+                          autoFocus
+                          onFocus={cursorToEnd}
+                          className="min-w-0 flex-1 rounded-none border-0 p-1.5 text-[13px]"
+                          inputMode="decimal"
+                          placeholder="Discount"
+                          value={cell.value}
+                          onChange={(e) => setCellValue(cleanMoney(e.target.value))}
+                          onKeyDown={cellKeys}
+                          onBlur={() => saveCell(g)}
+                        />
+                      </div>
+                    ) : (
+                      discount > 0 && (
+                        <div className="text-[12px] text-gray-500">
+                          {peso(amount)} less {peso(discount)} discount
+                        </div>
+                      )
                     )}
                   </td>
-                  <td>{o.remarks || ''}</td>
+                  <td className={EDITABLE} onDoubleClick={() => startCell(g, 'remarks')}>
+                    {isEditing(g, 'remarks') ? (
+                      <GrowBox
+                        autoFocus
+                        onFocus={cursorToEnd}
+                        placeholder="Expenses"
+                        value={cell.value}
+                        onChange={(e) => setCellValue(e.target.value)}
+                        onKeyDown={cellKeys}
+                        onBlur={() => saveCell(g)}
+                      />
+                    ) : (
+                      o.remarks || ''
+                    )}
+                  </td>
                   {canEdit && (
                     <td>
                       <div className="flex flex-wrap gap-1">
                         {!many && o.status === 'pending' && (
                           <button className={MINI} onClick={() => acceptOrder(o)}>Accept</button>
                         )}
-                        <button className={MINI} onClick={() => startEdit(g.orders)}>Edit</button>
-                        <button className={MINI} onClick={() => deleteOrders(g.orders)}>Delete</button>
+                        <button className={MINI} onClick={() => deleteOrders(g.key, g.orders)}>
+                          Delete
+                        </button>
                       </div>
                     </td>
                   )}
