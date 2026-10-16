@@ -11,6 +11,8 @@ import AddStock from './AddStock'
 import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
 import Pahiram from './Pahiram'
+import MonthlySales from './MonthlySales'
+import YearEndReport from './YearEndReport'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
@@ -167,11 +169,9 @@ export default function Admin({ user }) {
 
       {tab === 'branches' && <BranchView branch={branch} />}
 
-      {/* blank for now */}
-      {tab === 'monthly' && <h1 className="mt-0 mb-4 text-2xl">Monthly Sales Report</h1>}
+      {tab === 'monthly' && <MonthlySales />}
 
-      {/* blank for now */}
-      {tab === 'yearend' && <h1 className="mt-0 mb-4 text-2xl">Year End Report</h1>}
+      {tab === 'yearend' && <YearEndReport />}
 
       {/* blank for now */}
       {tab === 'tankcount' && (
