@@ -6,6 +6,7 @@ import StaffLayout from './StaffLayout'
 import BranchView from './BranchView'
 import ManageAccounts from './ManageAccounts'
 import Recommendations from './Recommendations'
+import Analytics from './Analytics'
 import AddStock from './AddStock'
 import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
@@ -83,6 +84,7 @@ export default function Admin({ user }) {
       ],
     },
     { key: 'recommendation', label: 'Recommendation', icon: 'chart' },
+    { key: 'analytics', label: 'Analytics', icon: 'trending' },
     {
       key: 'accounts',
       label: `Manage account${pending.length > 0 ? ` (${pending.length})` : ''}`,
@@ -153,7 +155,7 @@ export default function Admin({ user }) {
 
       {tab === 'recommendation' && <Recommendations mode="admin" />}
 
-      {tab === 'pahiram' && <Pahiram branch={ADMIN_BRANCH} />}
+      {tab === 'analytics' && <Analytics />}
 
       {tab === 'accounts' && (
         <ManageAccounts key={accountsVersion} mode="admin" top={pendingSection} hidePending />
