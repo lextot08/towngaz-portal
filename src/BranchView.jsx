@@ -3,8 +3,9 @@ import { supabase } from './supabaseClient'
 import { branchName } from './branches'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
+import OverallSales from './OverallSales'
 
-const OVERALL = 0 // "Overall": the total of all branches (Stock Inventory only, view only)
+const OVERALL = 0 // "Overall": the total of all branches (view only)
 const ADMIN_BRANCH = 1 // Caloocan (the main branch): the admin can edit its inventory and report only
 
 const OUTLINE =
@@ -23,7 +24,7 @@ export default function BranchView({ branch }) {
   const [message, setMessage] = useState('')
 
   const load = async () => {
-    if (isOverall) return // the Daily Sales Report is not shown for Overall
+    if (isOverall) return // Overall loads its own sales summary
     setMessage('')
     const ordersResult = await supabase
       .from('orders')
@@ -39,8 +40,7 @@ export default function BranchView({ branch }) {
     load()
   }, [branch])
 
-  // Overall always shows the Stock Inventory
-  const currentView = isOverall ? 'inventory' : view
+  const currentView = view
 
   const viewButton = (name) =>
     currentView === name
@@ -56,13 +56,22 @@ export default function BranchView({ branch }) {
       <button className={viewButton('inventory')} onClick={() => setView('inventory')}>
         Stock Inventory
       </button>
-      {!isOverall && (
-        <button className={viewButton('report')} onClick={() => setView('report')}>
-          Daily Sales Report
-        </button>
-      )}
+      <button className={viewButton('report')} onClick={() => setView('report')}>
+        Daily Sales Report
+      </button>
     </div>
   )
+
+  if (isOverall && currentView === 'report') {
+    return (
+      <OverallSales
+        headerLeft={headerLeft}
+        date={date}
+        onDateChange={setDate}
+        tableClass={PANEL}
+      />
+    )
+  }
 
   if (currentView === 'inventory') {
     return (

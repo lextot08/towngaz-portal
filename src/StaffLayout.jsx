@@ -103,7 +103,8 @@ export default function StaffLayout({
             open ? 'max-[900px]:translate-x-0' : 'max-[900px]:-translate-x-full'
           }`}
         >
-          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+          {/* still scrolls on short screens, but the scrollbar is hidden */}
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {items.map((item) => {
               const hasSub = Boolean(item.subItems)
               const isActive = active === item.key

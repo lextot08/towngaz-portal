@@ -160,6 +160,8 @@ export default function Admin({ user }) {
       {tab === 'accounts' && (
         <ManageAccounts key={accountsVersion} mode="admin" top={pendingSection} hidePending />
       )}
+
+      {tab === 'pahiram' && <Pahiram branch={ADMIN_BRANCH} />}
     </StaffLayout>
   )
 }
