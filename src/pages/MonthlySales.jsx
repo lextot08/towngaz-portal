@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { BRANCHES } from '../lib/branches'
+import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 
@@ -25,10 +25,12 @@ const blank = (key) => (
   <td key={key} className={`${CELL} text-gray-400`}>-</td>
 )
 
-// Monthly Sales Report (admin, all branches): one row per branch for the chosen month.
+// Monthly Sales Report: one row per branch for the chosen month (admin: all branches,
+// staff: only their own branch, passed as the branch prop).
 // Gross Sale = the amounts (after discount) of the accepted orders from the 1st to the last day.
 // The other columns are blank for now.
-export default function MonthlySales() {
+export default function MonthlySales({ branch }) {
+  const shownBranches = branch ? BRANCHES.filter((b) => b.id === branch) : BRANCHES
   const [month, setMonth] = useState(thisMonth()) // 'YYYY-MM'
   const [sizes, setSizes] = useState([])
   const [orders, setOrders] = useState([])
@@ -42,12 +44,14 @@ export default function MonthlySales() {
     to.setMonth(to.getMonth() + 1)
 
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
-    const ordersResult = await supabase
+    let ordersQuery = supabase
       .from('orders')
       .select('branch, total_price, discount')
       .eq('status', 'accepted')
       .gte('accepted_at', from.toISOString())
       .lt('accepted_at', to.toISOString())
+    if (branch) ordersQuery = ordersQuery.eq('branch', branch)
+    const ordersResult = await ordersQuery
 
     const error = sizesResult.error || ordersResult.error
     if (error) {
@@ -60,7 +64,7 @@ export default function MonthlySales() {
 
   useEffect(() => {
     load()
-  }, [month])
+  }, [month, branch])
 
   // the amount of one order after its discount, like the Daily Sales Report
   const amountOf = (o) => Number(o.total_price) - Number(o.discount || 0)
@@ -86,7 +90,7 @@ export default function MonthlySales() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="m-0 text-2xl">Monthly Sales Report</h1>
-          <p className="m-0 text-[14px] text-gray-500">All branches · {monthText(month)}</p>
+          <p className="m-0 text-[14px] text-gray-500">{branch ? branchName(branch) : 'All branches'} · {monthText(month)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className={`${OUTLINE} flex items-center gap-2`}>
@@ -130,7 +134,7 @@ export default function MonthlySales() {
             </tr>
           </thead>
           <tbody>
-            {BRANCHES.map((b) => (
+            {shownBranches.map((b) => (
               <tr key={b.id}>
                 <td className={LABEL}>{b.name}</td>
                 <td className={MONEY}>{peso(grossOf(b.id))}</td>
@@ -138,13 +142,16 @@ export default function MonthlySales() {
               </tr>
             ))}
           </tbody>
-          <tfoot>
-            <tr className="font-bold">
-              <td className={LABEL}>Total</td>
-              <td className={MONEY}>{peso(totalGross)}</td>
-              {blankCells()}
-            </tr>
-          </tfoot>
+          {/* one branch only (staff): its row is already the total */}
+          {!branch && (
+            <tfoot>
+              <tr className="font-bold">
+                <td className={LABEL}>Total</td>
+                <td className={MONEY}>{peso(totalGross)}</td>
+                {blankCells()}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

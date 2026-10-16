@@ -10,10 +10,10 @@ import Analytics from './Analytics'
 import AddStock from './AddStock'
 import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
-import Pahiram from './Pahiram'
 import MonthlySales from './MonthlySales'
 import YearEndReport from './YearEndReport'
 import TankBorrowed from './TankBorrowed'
+import AuditLog from './AuditLog'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
@@ -98,6 +98,7 @@ export default function Admin({ user }) {
     { key: 'tankcount', label: 'Tank Count', icon: 'box', subItems: TANK_VIEWS },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
     { key: 'yearend', label: 'Year End Report', icon: 'file' },
+    { key: 'audit', label: 'Audit Log', icon: 'list' },
     { key: 'recommendation', label: 'Recommendation', icon: 'chart' },
     { key: 'analytics', label: 'Analytics', icon: 'trending' },
     {
@@ -105,7 +106,6 @@ export default function Admin({ user }) {
       label: `Manage account${pending.length > 0 ? ` (${pending.length})` : ''}`,
       icon: 'users',
     },
-    { key: 'pahiram', label: 'Pahiram', icon: 'repeat' },
   ]
 
   // pending accounts, shown at the top of Manage account
@@ -172,6 +172,8 @@ export default function Admin({ user }) {
 
       {tab === 'yearend' && <YearEndReport />}
 
+      {tab === 'audit' && <AuditLog />}
+
       {tab === 'tankcount' && tankView === 'borrowed' && <TankBorrowed />}
 
       {/* blank for now */}
@@ -187,7 +189,6 @@ export default function Admin({ user }) {
         <ManageAccounts key={accountsVersion} mode="admin" top={pendingSection} hidePending />
       )}
 
-      {tab === 'pahiram' && <Pahiram branch={ADMIN_BRANCH} />}
     </StaffLayout>
   )
 }

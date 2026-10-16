@@ -30,9 +30,11 @@ const thisYear = () => new Date().getFullYear()
 
 // Year End Report: kilograms of LPG sold per month, by customer type and size.
 // kg = cylinders sold x kg of the size (for example 10 x 2.7kg = 27 kg).
-export default function YearEndReport() {
+// Staff pass their own branch (fixed); the admin picks a branch or all branches.
+export default function YearEndReport({ branch: ownBranch }) {
   const [year, setYear] = useState(thisYear())
-  const [branch, setBranch] = useState(OVERALL) // 0 = all branches
+  const [chosenBranch, setBranch] = useState(OVERALL) // 0 = all branches
+  const branch = ownBranch ?? chosenBranch
   const [sizes, setSizes] = useState([])
   const [orders, setOrders] = useState([])
   const [message, setMessage] = useState('')
@@ -113,12 +115,14 @@ export default function YearEndReport() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={branch} onChange={(e) => setBranch(Number(e.target.value))}>
-            <option value={OVERALL}>All branches</option>
-            {BRANCHES.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+          {ownBranch === undefined && (
+            <select value={branch} onChange={(e) => setBranch(Number(e.target.value))}>
+              <option value={OVERALL}>All branches</option>
+              {BRANCHES.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
           <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
             {years.map((y) => (
               <option key={y} value={y}>{y}</option>

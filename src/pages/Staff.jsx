@@ -7,7 +7,9 @@ import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
-import Pahiram from './Pahiram'
+import Ledger from './Ledger'
+import MonthlySales from './MonthlySales'
+import YearEndReport from './YearEndReport'
 
 export default function Staff({ user, branch }) {
   const [view, setView] = useState('main')
@@ -77,7 +79,9 @@ export default function Staff({ user, branch }) {
       label: `Daily Sales Report${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ''}`,
       icon: 'report',
     },
-    { key: 'pahiram', label: 'Pahiram', icon: 'repeat' },    
+    { key: 'ledger', label: 'Ledger', icon: 'file' },
+    { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
+    { key: 'yearend', label: 'Year End Report', icon: 'file' },
   ]
 
   return (
@@ -103,7 +107,14 @@ export default function Staff({ user, branch }) {
       {tab === 'report' && (
         <SalesReport branch={branch} orders={orders} reload={loadAll} canEdit showRefresh />
       )}
-      {tab === 'pahiram' && <Pahiram branch={branch} />}
+      {/* the reports, with only this branch's orders */}
+      {tab === 'monthly' && <MonthlySales branch={branch} />}
+
+      {tab === 'yearend' && <YearEndReport branch={branch} />}
+
+      {/* Ledger: its own list, not linked to the orders */}
+      {tab === 'ledger' && <Ledger branch={branch} />}
+
     </StaffLayout>
   )
 }

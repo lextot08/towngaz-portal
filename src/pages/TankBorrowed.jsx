@@ -36,8 +36,10 @@ const toRows = (list) => {
 
 // Tank Count > Borrowed: the orders with the Remark "Utang" (under Borrowed) or
 // "Bayad Utang" (under Returned) in the Daily Sales Report, with the same quantities.
-export default function TankBorrowed() {
-  const [branch, setBranch] = useState(OVERALL) // 0 = all branches
+// Staff pass their own branch (fixed); the admin picks a branch or all branches.
+export default function TankBorrowed({ branch: ownBranch }) {
+  const [chosenBranch, setBranch] = useState(OVERALL) // 0 = all branches
+  const branch = ownBranch ?? chosenBranch
   const [sizes, setSizes] = useState([])
   const [orders, setOrders] = useState([])
   const [message, setMessage] = useState('')
@@ -105,12 +107,14 @@ export default function TankBorrowed() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={branch} onChange={(e) => setBranch(Number(e.target.value))}>
-            <option value={OVERALL}>All branches</option>
-            {BRANCHES.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+          {ownBranch === undefined && (
+            <select value={branch} onChange={(e) => setBranch(Number(e.target.value))}>
+              <option value={OVERALL}>All branches</option>
+              {BRANCHES.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
           <button className={OUTLINE} onClick={load}>Refresh</button>
         </div>
       </div>
