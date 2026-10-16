@@ -4,6 +4,7 @@ import { confirmDialog } from '../components/Confirm'
 import { branchName } from '../lib/branches'
 import { todayString, localDateString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
+import { UTANG_LABELS } from '../lib/utang'
 import DateButton from '../components/DateButton'
 
 // shown after the customer name: Juan (H)
@@ -92,8 +93,9 @@ const ROW_INPUT = 'box-border block w-full min-w-0 p-1.5 text-[13px]'
 // Share of the table width for each column, in percent (they add up to 100).
 // The size columns (2.7kg, 11kg, 22kg, 50kg) share 20% between them.
 // WIDTHS_SELECT is used while choosing orders to delete (a small box column at the end).
-const WIDTHS_VIEW = { time: 7, name: 19, contact: 10, address: 14, unit: 8, amount: 11, remarks: 11 }
-const WIDTHS_SELECT = { time: 7, name: 16, contact: 10, address: 13, unit: 8, amount: 10, remarks: 11, select: 5 }
+// (remarks = the Expenses column, utang = the Remark column)
+const WIDTHS_VIEW = { time: 7, name: 16, contact: 10, address: 12, unit: 8, amount: 10, remarks: 9, utang: 8 }
+const WIDTHS_SELECT = { time: 7, name: 14, contact: 9, address: 11, unit: 8, amount: 9, remarks: 9, utang: 8, select: 5 }
 const SIZES_SHARE = 20
 
 // A text box that gets taller when the text is long, so the table keeps its size
@@ -140,7 +142,7 @@ export default function SalesReport({
   const setReportDate = onDateChange ?? setOwnDate
 
   const [extra, setExtra] = useState({ sizes: [], stock: [] })
-  // the cell being edited: { key: row key, field: 'name' | 'remarks' | 'discount', value }
+  // the cell being edited: { key: row key, field: 'name' | 'remarks' | 'discount' | 'utang', value }
   // (for 'name' the value is { name, type }: the customer type is chosen in the name cell)
   const [cell, setCell] = useState(null)
   const savingCell = useRef(false) // stops Enter and clicking away from saving twice
@@ -210,7 +212,7 @@ export default function SalesReport({
 
   const sizeList = extra.sizes
   const sizeCols = Math.max(sizeList.length, 1)
-  const totalCols = 4 + sizeCols + 3 + (selecting ? 1 : 0)
+  const totalCols = 4 + sizeCols + 4 + (selecting ? 1 : 0)
   const W = selecting ? WIDTHS_SELECT : WIDTHS_VIEW
   // a cell that opens for editing on double-click
   const EDITABLE = canEdit ? 'cursor-cell hover:bg-black/[0.03]' : ''
@@ -362,7 +364,9 @@ export default function SalesReport({
         ? { name: o.customer_name || '', type: o.customer_type || 'household' }
         : field === 'remarks'
           ? o.remarks || ''
-          : discount > 0
+          : field === 'utang'
+            ? o.utang_status || ''
+            : discount > 0
             ? discount.toFixed(2)
             : ''
     cancelledCell.current = false
@@ -472,6 +476,20 @@ export default function SalesReport({
 
   const isEditing = (g, field) => cell && cell.key === g.key && cell.field === field
 
+  // Remark: Utang (goes to Tank Count > Borrowed) or Bayad Utang, saved as soon as it is chosen
+  const saveUtang = async (g, value) => {
+    const old = g.orders[0].utang_status || ''
+    if (value === old) {
+      setCell(null)
+      return
+    }
+    const ok = await callFunction('set_order_utang', {
+      p_order_ids: g.orders.map((x) => x.id),
+      p_utang: value || null,
+    })
+    if (ok) setCell(null)
+  }
+
   // ---- Delete: tick the small boxes at the end of the rows, then delete them together ----
   const startDelete = () => {
     setMessage('')
@@ -564,8 +582,8 @@ export default function SalesReport({
             {' '}
             Click the row to accept it (only then is it taken from the stock).
             Double-click a Customer name (to change the name or the type), Amount (for the
-            discount), or Expenses cell to edit it. H = Household, C = Commercial, RTO = Retail
-            Outlet. Press Enter to save or Esc to cancel.
+            discount), Expenses, or Remark (Utang or Bayad Utang) cell to edit it. H = Household,
+            C = Commercial, RTO = Retail Outlet. Press Enter to save or Esc to cancel.
           </>
         )}
       </p>
@@ -587,6 +605,7 @@ export default function SalesReport({
             <col style={{ width: `${W.unit}%` }} />
             <col style={{ width: `${W.amount}%` }} />
             <col style={{ width: `${W.remarks}%` }} />
+            <col style={{ width: `${W.utang}%` }} />
             {selecting && <col style={{ width: `${W.select}%` }} />}
           </colgroup>
           <thead>
@@ -599,6 +618,7 @@ export default function SalesReport({
               <th rowSpan={2}>Unit cost</th>
               <th rowSpan={2}>Amount</th>
               <th rowSpan={2}>Expenses</th>
+              <th rowSpan={2}>Remark</th>
               {selecting && <th rowSpan={2} className="text-center">Delete</th>}
             </tr>
             <tr>
@@ -700,6 +720,9 @@ export default function SalesReport({
                     onChange={setNew('remarks')}
                   />
                 </td>
+                <td className="text-[12px] text-gray-500">
+                  Double-click after saving
+                </td>
               </tr>
             )}
 
@@ -793,14 +816,6 @@ export default function SalesReport({
                     )}
                   </td>
                   <td className={EDITABLE} onDoubleClick={() => startCell(g, 'remarks')}>
-                    {isNewOrder(g) && (
-                      <span
-                        className="float-right ml-1 flex size-5 items-center justify-center rounded-full bg-brand-red text-[12px] font-bold text-white"
-                        title="New order from the website"
-                      >
-                        !
-                      </span>
-                    )}
                     {isEditing(g, 'remarks') ? (
                       <GrowBox
                         autoFocus
@@ -813,6 +828,39 @@ export default function SalesReport({
                       />
                     ) : (
                       o.remarks || ''
+                    )}
+                  </td>
+                  <td className={EDITABLE} onDoubleClick={() => startCell(g, 'utang')}>
+                    {isNewOrder(g) && (
+                      <span
+                        className="float-right ml-1 flex size-5 items-center justify-center rounded-full bg-brand-red text-[12px] font-bold text-white"
+                        title="New order from the website"
+                      >
+                        !
+                      </span>
+                    )}
+                    {isEditing(g, 'utang') ? (
+                      <select
+                        autoFocus
+                        className={ROW_INPUT}
+                        value={cell.value}
+                        onChange={(e) => saveUtang(g, e.target.value)}
+                        onKeyDown={(e) => e.key === 'Escape' && cancelCell()}
+                        onBlur={cancelCell}
+                      >
+                        <option value="">(none)</option>
+                        {Object.entries(UTANG_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      o.utang_status && (
+                        <span
+                          className={`font-semibold ${o.utang_status === 'utang' ? 'text-brand-red' : 'text-brand-pine'}`}
+                        >
+                          {UTANG_LABELS[o.utang_status]}
+                        </span>
+                      )
                     )}
                   </td>
                   {selecting && (
@@ -837,7 +885,7 @@ export default function SalesReport({
             <tr>
               <td colSpan={5 + sizeCols}><strong>Total sales on {shownDate}</strong></td>
               <td><strong>{peso(dayTotal)}</strong></td>
-              <td colSpan={selecting ? 2 : 1}></td>
+              <td colSpan={selecting ? 3 : 2}></td>
             </tr>
           </tfoot>
         </table>

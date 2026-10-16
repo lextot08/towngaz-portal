@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase, signupClient } from '../lib/supabaseClient'
 import { confirmDialog } from '../components/Confirm'
-import { branchName } from '../lib/branches'
+import { branchName, BRANCHES } from '../lib/branches'
 import {
   EMAIL_DOMAIN,
   buildEmail,
@@ -217,7 +217,7 @@ export default function ManageAccounts({ mode, branch, top = null, hidePending =
             Branch:{' '}
             <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)}>
               <option value="">All branches</option>
-              {[1, 2, 3, 4, 5, 6].map((n) => (
+              {BRANCHES.map(({ id: n }) => (
                 <option key={n} value={n}>{branchName(n)}</option>
               ))}
             </select>
@@ -264,7 +264,7 @@ export default function ManageAccounts({ mode, branch, top = null, hidePending =
               Branch
               <select value={form.branch} onChange={setField('branch')} required>
                 <option value="" disabled>Select branch</option>
-                {[1, 2, 3, 4, 5, 6].map((n) => (
+                {BRANCHES.map(({ id: n }) => (
                   <option key={n} value={n}>{branchName(n)}</option>
                 ))}
               </select>

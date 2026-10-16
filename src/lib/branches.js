@@ -5,6 +5,7 @@ export const BRANCHES = [
   { id: 4, name: 'Cuenca' },
   { id: 5, name: 'Sta. Teresita' },
   { id: 6, name: 'Agoncillo' },
+  { id: 7, name: 'Truck' },
 ]
 
 export const branchName = (id) =>

@@ -13,6 +13,7 @@ import UpdatePrice from './UpdatePrice'
 import Pahiram from './Pahiram'
 import MonthlySales from './MonthlySales'
 import YearEndReport from './YearEndReport'
+import TankBorrowed from './TankBorrowed'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
@@ -20,7 +21,7 @@ const OVERALL = 0 // "Overall" under Branches: the total of all branches
 export default function Admin({ user }) {
   const [tab, setTab] = useState('home')
   const [branch, setBranch] = useState(OVERALL) // "Overall" or the branch chosen under Branches
-  const [tankView, setTankView] = useState('borrowed') // the page chosen under Tank Count
+  const [tankView, setTankView] = useState('revolving') // the page chosen under Tank Count
   const [view, setView] = useState('main')
   const [pending, setPending] = useState([])
   const [accountsVersion, setAccountsVersion] = useState(0)
@@ -64,10 +65,10 @@ export default function Admin({ user }) {
     return <UpdatePrice branch={ADMIN_BRANCH} onBack={() => setView('main')} />
   }
 
-  // clicking Branches from another page starts at Overall, and Tank Count at Borrowed
+  // clicking Branches from another page starts at Overall, and Tank Count at Revolving
   const selectTab = (key) => {
     if (key === 'branches' && tab !== 'branches') setBranch(OVERALL)
-    if (key === 'tankcount' && tab !== 'tankcount') setTankView('borrowed')
+    if (key === 'tankcount' && tab !== 'tankcount') setTankView('revolving')
     setTab(key)
   }
 
@@ -79,10 +80,8 @@ export default function Admin({ user }) {
   }
 
   const TANK_VIEWS = [
+    { key: 'revolving', label: 'Revolving' },
     { key: 'borrowed', label: 'Borrowed' },
-    { key: 'returned', label: 'Returned' },
-    { key: 'sell', label: 'Sell' },
-    { key: 'buy', label: 'Buy' },
   ]
 
   const items = [
@@ -96,9 +95,9 @@ export default function Admin({ user }) {
         ...BRANCHES.map((b) => ({ key: String(b.id), label: b.name })),
       ],
     },
+    { key: 'tankcount', label: 'Tank Count', icon: 'box', subItems: TANK_VIEWS },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
     { key: 'yearend', label: 'Year End Report', icon: 'file' },
-    { key: 'tankcount', label: 'Tank Count', icon: 'box', subItems: TANK_VIEWS },
     { key: 'recommendation', label: 'Recommendation', icon: 'chart' },
     { key: 'analytics', label: 'Analytics', icon: 'trending' },
     {
@@ -173,11 +172,11 @@ export default function Admin({ user }) {
 
       {tab === 'yearend' && <YearEndReport />}
 
+      {tab === 'tankcount' && tankView === 'borrowed' && <TankBorrowed />}
+
       {/* blank for now */}
-      {tab === 'tankcount' && (
-        <h1 className="mt-0 mb-4 text-2xl">
-          Tank Count - {TANK_VIEWS.find((v) => v.key === tankView).label}
-        </h1>
+      {tab === 'tankcount' && tankView === 'revolving' && (
+        <h1 className="mt-0 mb-4 text-2xl">Tank Count - Revolving</h1>
       )}
 
       {tab === 'recommendation' && <Recommendations mode="admin" />}
