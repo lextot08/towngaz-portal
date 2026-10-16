@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { supabase } from './supabaseClient'
-import { BRANCHES } from './branches'
+import { supabase } from '../lib/supabaseClient'
+import { BRANCHES } from '../lib/branches'
 import {
   EMAIL_DOMAIN,
   buildEmail,
@@ -9,7 +9,7 @@ import {
   nameError,
   filterContact,
   contactError,
-} from './accountRules'
+} from '../lib/accountRules'
 
 export default function Login({ initialMode = 'login' }) {
   const [mode, setMode] = useState(initialMode)

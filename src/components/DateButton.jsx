@@ -1,4 +1,4 @@
-import { todayString } from './dateUtils'
+import { todayString } from '../lib/dateUtils'
 
 const BUTTON =
   'relative flex cursor-pointer items-center gap-2 rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'

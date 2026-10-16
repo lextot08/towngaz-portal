@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
-import { confirmDialog } from './Confirm'
-import { branchName, BRANCHES } from './branches'
-import { loadLowLevels, stockStatus, statusColor } from './stockStatus'
-import { todayString } from './dateUtils'
-import DateButton from './DateButton'
+import { supabase } from '../lib/supabaseClient'
+import { confirmDialog } from '../components/Confirm'
+import { branchName, BRANCHES } from '../lib/branches'
+import { loadLowLevels, stockStatus, statusColor } from '../lib/stockStatus'
+import { todayString } from '../lib/dateUtils'
+import DateButton from '../components/DateButton'
 
 // Set to false to hide the EMPTIES columns.
 const SHOW_EMPTIES = true

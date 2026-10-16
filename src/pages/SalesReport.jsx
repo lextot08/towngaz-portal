@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { supabase } from './supabaseClient'
-import { confirmDialog } from './Confirm'
-import { branchName } from './branches'
-import { todayString, localDateString } from './dateUtils'
-import { peso } from './money'
-import DateButton from './DateButton'
+import { supabase } from '../lib/supabaseClient'
+import { confirmDialog } from '../components/Confirm'
+import { branchName } from '../lib/branches'
+import { todayString, localDateString } from '../lib/dateUtils'
+import { peso } from '../lib/money'
+import DateButton from '../components/DateButton'
 
 const DELIVERY_LABELS = {
   not_started: 'Not started',

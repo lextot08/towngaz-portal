@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
-import { branchName } from './branches'
+import { supabase } from '../lib/supabaseClient'
+import { branchName } from '../lib/branches'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
 import OverallSales from './OverallSales'

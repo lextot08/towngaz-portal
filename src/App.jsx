@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
-import { confirmDialog } from './Confirm'
-import Login from './Login'
-import Admin from './Admin'
-import Staff from './Staff'
+import { supabase } from './lib/supabaseClient'
+import { confirmDialog } from './components/Confirm'
+import Login from './pages/Login'
+import Admin from './pages/Admin'
+import Staff from './pages/Staff'
 
 const WEBSITE_URL = 'http://localhost:5173/' // address of the customer website
 

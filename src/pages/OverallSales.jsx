@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
-import { BRANCHES } from './branches'
-import { todayString } from './dateUtils'
-import DateButton from './DateButton'
+import { supabase } from '../lib/supabaseClient'
+import { BRANCHES } from '../lib/branches'
+import { todayString } from '../lib/dateUtils'
+import DateButton from '../components/DateButton'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'

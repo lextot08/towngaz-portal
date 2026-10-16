@@ -13,10 +13,10 @@ import {
   CartesianGrid,
   LabelList,
 } from 'recharts'
-import { supabase } from './supabaseClient'
-import { branchName, BRANCHES } from './branches'
-import { localDateString, todayString } from './dateUtils'
-import { peso } from './money'
+import { supabase } from '../lib/supabaseClient'
+import { branchName, BRANCHES } from '../lib/branches'
+import { localDateString, todayString } from '../lib/dateUtils'
+import { peso } from '../lib/money'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'

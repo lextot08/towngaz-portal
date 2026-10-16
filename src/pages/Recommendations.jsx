@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
-import { BRANCHES, branchName } from './branches'
+import { supabase } from '../lib/supabaseClient'
+import { BRANCHES, branchName } from '../lib/branches'
 
 // Shows the "Recommendation" column of the table (sample text for now).
 // Set this to false when the AI recommendation is added.

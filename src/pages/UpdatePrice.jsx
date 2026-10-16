@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './supabaseClient'
-import { confirmDialog } from './Confirm'
-import { branchName } from './branches'
-import { peso } from './money'
+import { supabase } from '../lib/supabaseClient'
+import { confirmDialog } from '../components/Confirm'
+import { branchName } from '../lib/branches'
+import { peso } from '../lib/money'
 
 const FIELD = 'grid gap-1 text-[14px]'
 const INPUT = 'box-border w-full'

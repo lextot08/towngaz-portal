@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase } from '../lib/supabaseClient'
 import { confirmDialog } from './Confirm'
 
 // The top bar picture: blue-green band on top, then a white band and a red band

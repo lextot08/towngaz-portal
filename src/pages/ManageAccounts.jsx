@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase, signupClient } from './supabaseClient'
-import { confirmDialog } from './Confirm'
-import { branchName } from './branches'
+import { supabase, signupClient } from '../lib/supabaseClient'
+import { confirmDialog } from '../components/Confirm'
+import { branchName } from '../lib/branches'
 import {
   EMAIL_DOMAIN,
   buildEmail,
@@ -10,7 +10,7 @@ import {
   nameError,
   filterContact,
   contactError,
-} from './accountRules'
+} from '../lib/accountRules'
 
 const emptyForm = {
   fullName: '',
