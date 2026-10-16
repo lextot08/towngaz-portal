@@ -15,6 +15,7 @@ const ICONS = {
   logout: 'M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9',
   branches: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01',
   chart: 'M4 20V10M10 20V4M16 20v-8M22 20H2',
+  trending: 'M3 17l6-6 4 4 8-8M15 7h6v6',
   users:
     'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
   chevron: 'M6 9l6 6 6-6',
