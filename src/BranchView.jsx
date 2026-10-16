@@ -4,6 +4,7 @@ import { branchName } from './branches'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
 
+const OVERALL = 0 // "Overall": the total of all branches (Stock Inventory only, view only)
 const ADMIN_BRANCH = 1 // Caloocan (the main branch): the admin can edit its inventory and report only
 
 const OUTLINE =
@@ -13,14 +14,16 @@ const OUTLINE =
 const PANEL =
   'h-[calc(100vh-260px)] min-h-[360px] overflow-auto rounded-xl border border-(color:--border) bg-white'
 
-// branch comes from the sidebar (Branches opens the list of six branches)
+// branch comes from the sidebar (Branches opens "Overall" and the list of six branches)
 export default function BranchView({ branch }) {
+  const isOverall = branch === OVERALL
   const [view, setView] = useState('inventory') // inventory | report
   const [orders, setOrders] = useState([])
   const [date, setDate] = useState('') // '' means today, shared by both views
   const [message, setMessage] = useState('')
 
   const load = async () => {
+    if (isOverall) return // the Daily Sales Report is not shown for Overall
     setMessage('')
     const ordersResult = await supabase
       .from('orders')
@@ -36,29 +39,37 @@ export default function BranchView({ branch }) {
     load()
   }, [branch])
 
+  // Overall always shows the Stock Inventory
+  const currentView = isOverall ? 'inventory' : view
+
   const viewButton = (name) =>
-    view === name
+    currentView === name
       ? 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine-light'
       : OUTLINE
 
-  // left side of the top row: the branch name, then the two views
+  // left side of the top row: the branch name, then the views
   const headerLeft = (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="mr-2 text-xl font-bold text-brand-pine">{branchName(branch)}</span>
+      <span className="mr-2 text-xl font-bold text-brand-pine">
+        {isOverall ? 'Overall' : branchName(branch)}
+      </span>
       <button className={viewButton('inventory')} onClick={() => setView('inventory')}>
         Stock Inventory
       </button>
-      <button className={viewButton('report')} onClick={() => setView('report')}>
-        Daily Sales Report
-      </button>
+      {!isOverall && (
+        <button className={viewButton('report')} onClick={() => setView('report')}>
+          Daily Sales Report
+        </button>
+      )}
     </div>
   )
 
-  if (view === 'inventory') {
+  if (currentView === 'inventory') {
     return (
       <InventoryTable
         branch={branch}
-        canEdit={branch === ADMIN_BRANCH}
+        overall={isOverall}
+        canEdit={!isOverall && branch === ADMIN_BRANCH}
         headerLeft={headerLeft}
         date={date}
         onDateChange={setDate}

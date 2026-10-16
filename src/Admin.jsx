@@ -11,10 +11,11 @@ import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
+const OVERALL = 0 // "Overall" under Branches: the total of all branches
 
 export default function Admin({ user }) {
   const [tab, setTab] = useState('home')
-  const [branch, setBranch] = useState(ADMIN_BRANCH) // the branch chosen under Branches
+  const [branch, setBranch] = useState(OVERALL) // "Overall" or the branch chosen under Branches
   const [view, setView] = useState('main')
   const [pending, setPending] = useState([])
   const [accountsVersion, setAccountsVersion] = useState(0)
@@ -58,9 +59,9 @@ export default function Admin({ user }) {
     return <UpdatePrice branch={ADMIN_BRANCH} onBack={() => setView('main')} />
   }
 
-  // clicking Branches from another page starts at Caloocan
+  // clicking Branches from another page starts at Overall
   const selectTab = (key) => {
-    if (key === 'branches' && tab !== 'branches') setBranch(ADMIN_BRANCH)
+    if (key === 'branches' && tab !== 'branches') setBranch(OVERALL)
     setTab(key)
   }
 
@@ -75,7 +76,10 @@ export default function Admin({ user }) {
       key: 'branches',
       label: 'Branches',
       icon: 'branches',
-      subItems: BRANCHES.map((b) => ({ key: String(b.id), label: b.name })),
+      subItems: [
+        { key: String(OVERALL), label: 'Overall' },
+        ...BRANCHES.map((b) => ({ key: String(b.id), label: b.name })),
+      ],
     },
     { key: 'recommendation', label: 'Recommendation', icon: 'chart' },
     {

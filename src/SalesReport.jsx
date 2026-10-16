@@ -4,6 +4,7 @@ import { confirmDialog } from './Confirm'
 import { branchName } from './branches'
 import { todayString, localDateString } from './dateUtils'
 import { peso } from './money'
+import DateButton from './DateButton'
 
 const DELIVERY_LABELS = {
   not_started: 'Not started',
@@ -37,7 +38,7 @@ const FIELD = 'grid gap-1 text-[14px]'
 const CANCEL_BTN = 'flex-1 border border-(color:--border) bg-white text-(color:--text)'
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
-const TABLE = 'w-full min-w-[900px] [&_td]:p-2 [&_th]:p-2'
+const TABLE = 'w-full min-w-[1050px] [&_td]:p-2 [&_th]:p-2'
 
 // The Daily Sales Report, used by the staff page and by the admin's Branches page.
 // canEdit = true shows Accept / Edit / Delete (staff, and the admin on Caloocan).
@@ -240,20 +241,10 @@ export default function SalesReport({
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <label className={`${OUTLINE} flex items-center gap-2`}>
-            Date
-            <input
-              type="date"
-              className="border-0 bg-transparent p-0"
-              value={shownDate}
-              max={todayString()}
-              onChange={(e) =>
-                setReportDate(
-                  !e.target.value || e.target.value === todayString() ? '' : e.target.value
-                )
-              }
-            />
-          </label>
+          <DateButton
+            value={shownDate}
+            onChange={(v) => setReportDate(!v || v === todayString() ? '' : v)}
+          />
           <button className={OUTLINE} onClick={() => setReportDate('')}>Today</button>
           {showRefresh && <button className={OUTLINE} onClick={reload}>Refresh</button>}
         </div>
@@ -403,6 +394,7 @@ export default function SalesReport({
           <thead>
             <tr>
               <th>Customer name</th>
+              <th>Address</th>
               <th>Type</th>
               <th>Size</th>
               <th>Unit cost</th>
@@ -419,6 +411,7 @@ export default function SalesReport({
                   {o.customer_name}
                   {SOURCE_LABELS[o.source] || ''}
                 </td>
+                <td className="max-w-[220px]">{o.customer_address || ''}</td>                
                 <td>{TYPE_LABELS[o.customer_type] || 'Household'}</td>
                 <td>{sizeOf(o.item_name)} x {o.quantity}</td>
                 <td>{peso(o.unit_price)}</td>
@@ -450,12 +443,12 @@ export default function SalesReport({
               </tr>
             ))}
             {reportRows.length === 0 && (
-              <tr><td colSpan={canEdit ? 8 : 7}>No sales on this date</td></tr>
+              <tr><td colSpan={canEdit ? 9 : 8}>No sales on this date</td></tr>
             )}
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan="4"><strong>Total sales on {shownDate}</strong></td>
+              <td colSpan="5"><strong>Total sales on {shownDate}</strong></td>
               <td><strong>{peso(dayTotal)}</strong></td>
               <td colSpan={canEdit ? 3 : 2}></td>
             </tr>
