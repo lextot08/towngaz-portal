@@ -9,6 +9,7 @@ import Recommendations from './Recommendations'
 import AddStock from './AddStock'
 import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
+import Pahiram from './Pahiram'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
@@ -87,6 +88,7 @@ export default function Admin({ user }) {
       label: `Manage account${pending.length > 0 ? ` (${pending.length})` : ''}`,
       icon: 'users',
     },
+    { key: 'pahiram', label: 'Pahiram', icon: 'repeat' },
   ]
 
   // pending accounts, shown at the top of Manage account
@@ -150,6 +152,8 @@ export default function Admin({ user }) {
       {tab === 'branches' && <BranchView branch={branch} />}
 
       {tab === 'recommendation' && <Recommendations mode="admin" />}
+
+      {tab === 'pahiram' && <Pahiram branch={ADMIN_BRANCH} />}
 
       {tab === 'accounts' && (
         <ManageAccounts key={accountsVersion} mode="admin" top={pendingSection} hidePending />

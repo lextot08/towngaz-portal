@@ -7,6 +7,7 @@ import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
+import Pahiram from './Pahiram'
 
 export default function Staff({ user, branch }) {
   const [view, setView] = useState('main')
@@ -76,6 +77,7 @@ export default function Staff({ user, branch }) {
       label: `Daily Sales Report${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ''}`,
       icon: 'report',
     },
+    { key: 'pahiram', label: 'Pahiram', icon: 'repeat' },    
   ]
 
   return (
@@ -99,8 +101,9 @@ export default function Staff({ user, branch }) {
       {tab === 'inventory' && <InventoryTable branch={branch} canEdit />}
 
       {tab === 'report' && (
-        <SalesReport branch={branch} orders={orders} reload={loadAll} canEdit />
+        <SalesReport branch={branch} orders={orders} reload={loadAll} canEdit showRefresh />
       )}
+      {tab === 'pahiram' && <Pahiram branch={branch} />}
     </StaffLayout>
   )
 }

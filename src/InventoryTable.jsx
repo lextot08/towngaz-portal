@@ -32,15 +32,16 @@ const calcFilled = (saved, draft) => {
   return { beginning, incoming, sales, total, ending: total - sales }
 }
 
-// EMPTIES: Ending = Beginning + the FILLED Sales.
+// EMPTIES: Ending = Beginning + the FILLED Sales + the Variance (the pahiram: negative = borrowed).
 // Incoming/Refill and Total are not calculated: they are only what was typed.
 const calcEmpties = (saved, draft, filledSales) => {
   const beginning = pick(draft?.beginning ?? '', saved.beginning)
-  return { beginning, ending: beginning + filledSales }
+  const variance = Number(saved.variance) || 0
+  return { beginning, variance, ending: beginning + filledSales + variance }
 }
 
 const filledSaved = (r) => ({ beginning: r.beginning, incoming: r.incoming, sales: r.sold })
-const emptiesSaved = (e) => ({ beginning: e.beginning })
+const emptiesSaved = (e) => ({ beginning: e.beginning, variance: e.variance })
 
 // the message for a number that cannot be saved, or ''
 const filledProblem = (name, v, minSales) => {
@@ -145,7 +146,7 @@ export default function InventoryTable({
           setEmptyRows(
             addUp(
               emptiesResults.map((x) => x.data),
-              ['beginning', 'incoming', 'total', 'ending'],
+              ['beginning', 'incoming', 'total', 'ending', 'variance'],
               ['incoming', 'total']
             )
           )
@@ -568,7 +569,12 @@ export default function InventoryTable({
               {bodyRow(
                 'Variance',
                 () => 0,
-                () => 0
+                (e) =>
+                  e.variance === 0 ? (
+                    0
+                  ) : (
+                    <span className="font-semibold text-brand-red">{e.variance}</span>
+                  )
               )}
             </tbody>
           </table>
