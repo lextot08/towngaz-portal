@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
+import { expensesOfOrders } from '../lib/expenses'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -46,7 +47,7 @@ export default function MonthlySales({ branch }) {
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
     let ordersQuery = supabase
       .from('orders')
-      .select('branch, total_price, discount')
+      .select('id, group_id, branch, item_name, quantity, total_price, discount, remarks')
       .eq('status', 'accepted')
       .gte('accepted_at', from.toISOString())
       .lt('accepted_at', to.toISOString())
@@ -69,21 +70,36 @@ export default function MonthlySales({ branch }) {
   // the amount of one order after its discount, like the Daily Sales Report
   const amountOf = (o) => Number(o.total_price) - Number(o.discount || 0)
 
-  const grossOf = (branchId) =>
-    orders.filter((o) => o.branch === branchId).reduce((sum, o) => sum + amountOf(o), 0)
-
-  const totalGross = orders.reduce((sum, o) => sum + amountOf(o), 0)
   const sizeCols = Math.max(sizes.length, 1)
 
-  // the blank cells after Gross Sale: Expenses, Net, Deposit, Benta Tanke, Add Tanke, then the sizes
-  const blankCells = () => [
-    blank('expenses'),
-    blank('net'),
-    blank('deposit'),
-    blank('benta'),
-    blank('add'),
-    ...(sizes.length > 0 ? sizes : ['']).map((s) => blank(`tank-${s}`)),
-  ]
+  // Gross Sale, Expenses (the numbers typed in the Daily Sales Report), and Net = Gross - Expenses
+  const moneyCells = (list) => {
+    const gross = list.reduce((sum, o) => sum + amountOf(o), 0)
+    const expenses = expensesOfOrders(list)
+    return [
+      <td key="gross" className={MONEY}>{peso(gross)}</td>,
+      <td key="expenses" className={MONEY}>{peso(expenses)}</td>,
+      <td key="net" className={MONEY}>{peso(gross - expenses)}</td>,
+    ]
+  }
+
+  // the blank cells after Net: Deposit, Benta Tanke, Add Tanke
+  const blankCells = () => [blank('deposit'), blank('benta'), blank('add')]
+
+  // Tanks Count: the cylinders sold in the month, per size
+  const tankCells = (list) =>
+    sizes.length === 0
+      ? [blank('tank')]
+      : sizes.map((size) => {
+          const sold = list
+            .filter((o) => o.item_name === 'LPG Cylinder ' + size)
+            .reduce((sum, o) => sum + Number(o.quantity || 0), 0)
+          return (
+            <td key={`tank-${size}`} className={CELL}>
+              {sold > 0 ? sold.toLocaleString('en-PH') : '-'}
+            </td>
+          )
+        })
 
   return (
     <div>
@@ -137,8 +153,9 @@ export default function MonthlySales({ branch }) {
             {shownBranches.map((b) => (
               <tr key={b.id}>
                 <td className={LABEL}>{b.name}</td>
-                <td className={MONEY}>{peso(grossOf(b.id))}</td>
+                {moneyCells(orders.filter((o) => o.branch === b.id))}
                 {blankCells()}
+                {tankCells(orders.filter((o) => o.branch === b.id))}
               </tr>
             ))}
           </tbody>
@@ -147,8 +164,9 @@ export default function MonthlySales({ branch }) {
             <tfoot>
               <tr className="font-bold">
                 <td className={LABEL}>Total</td>
-                <td className={MONEY}>{peso(totalGross)}</td>
+                {moneyCells(orders)}
                 {blankCells()}
+                {tankCells(orders)}
               </tr>
             </tfoot>
           )}
@@ -157,7 +175,9 @@ export default function MonthlySales({ branch }) {
 
       <p className="mt-4 mb-0 text-[14px] text-gray-600">
         Gross Sale is the total amount (after discounts) of the accepted orders from the 1st to the
-        last day of {monthText(month)}.
+        last day of {monthText(month)}. Expenses is the sum of the numbers typed in the Expenses
+        column of the Daily Sales Report (for example &quot;gas 70 others 30&quot; = ₱100). Net =
+        Gross Sale - Expenses. Tanks Count is the number of cylinders sold in the month, per size.
       </p>
     </div>
   )

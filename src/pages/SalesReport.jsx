@@ -5,6 +5,7 @@ import { branchName } from '../lib/branches'
 import { todayString, localDateString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { UTANG_LABELS } from '../lib/utang'
+import { expenseOf, expensesOfOrders } from '../lib/expenses'
 import DateButton from '../components/DateButton'
 
 // shown after the customer name: Juan (H)
@@ -227,6 +228,8 @@ export default function SalesReport({
   const displayRows = toDisplayRows(reportRows)
   // total sales of the day, after the discounts
   const dayTotal = grossOf(dayOrders) - discountOf(dayOrders)
+  // total expenses of the day (the numbers typed in the Expenses column)
+  const dayExpenses = expensesOfOrders(dayOrders)
   // the ticked rows that are on the page now
   const selectedRows = displayRows.filter((g) => selected.includes(g.key))
 
@@ -827,7 +830,13 @@ export default function SalesReport({
                         onBlur={() => saveCell(g)}
                       />
                     ) : (
-                      o.remarks || ''
+                      <>
+                        {o.remarks || ''}
+                        {/* the value used in the reports: the sum of the numbers typed */}
+                        {expenseOf(o.remarks) > 0 && (
+                          <div className="text-[12px] text-gray-500">= {peso(expenseOf(o.remarks))}</div>
+                        )}
+                      </>
                     )}
                   </td>
                   <td className={EDITABLE} onDoubleClick={() => startCell(g, 'utang')}>
@@ -885,7 +894,10 @@ export default function SalesReport({
             <tr>
               <td colSpan={5 + sizeCols}><strong>Total sales on {shownDate}</strong></td>
               <td><strong>{peso(dayTotal)}</strong></td>
-              <td colSpan={selecting ? 3 : 2}></td>
+              <td>
+                {dayExpenses > 0 && <strong>{peso(dayExpenses)}</strong>}
+              </td>
+              <td colSpan={selecting ? 2 : 1}></td>
             </tr>
           </tfoot>
         </table>
