@@ -13,6 +13,7 @@ import UpdatePrice from './UpdatePrice'
 import MonthlySales from './MonthlySales'
 import YearEndReport from './YearEndReport'
 import TankBorrowed from './TankBorrowed'
+import TankRevolving from './TankRevolving'
 import AuditLog from './AuditLog'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
@@ -176,10 +177,7 @@ export default function Admin({ user }) {
 
       {tab === 'tankcount' && tankView === 'borrowed' && <TankBorrowed />}
 
-      {/* blank for now */}
-      {tab === 'tankcount' && tankView === 'revolving' && (
-        <h1 className="mt-0 mb-4 text-2xl">Tank Count - Revolving</h1>
-      )}
+      {tab === 'tankcount' && tankView === 'revolving' && <TankRevolving />}
 
       {tab === 'recommendation' && <Recommendations mode="admin" />}
 
