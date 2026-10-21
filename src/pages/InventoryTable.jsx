@@ -22,25 +22,34 @@ const sizeLabel = (size) => size.replace(/kg$/i, ' KG').toUpperCase()
 const parse = (text) => (text === '' ? null : Number(text))
 const pick = (text, saved) => parse(text) ?? saved
 
-// FILLED: Total = Beginning + Incoming. Ending = Total - Sales. Actual Count = Ending.
+// FILLED: Total = Beginning + Incoming + Refill. Ending = Total - Sales. Actual Count = Ending.
+// Incoming = new filled cylinders. Refill = the branch's empties exchanged for filled ones.
 // "saved" are the numbers from the database, "draft" is what is typed in Edit mode.
 const calcFilled = (saved, draft) => {
   const beginning = pick(draft?.beginning ?? '', saved.beginning)
   const incoming = pick(draft?.incoming ?? '', saved.incoming)
+  const refill = pick(draft?.refill ?? '', saved.refill)
   const sales = pick(draft?.sales ?? '', saved.sales)
-  const total = beginning + incoming
-  return { beginning, incoming, sales, total, ending: total - sales }
+  const total = beginning + incoming + refill
+  return { beginning, incoming, refill, sales, total, ending: total - sales }
 }
 
-// EMPTIES: Ending = Beginning + the FILLED Sales + the Variance (the pahiram: negative = borrowed).
-// Incoming/Refill and Total are not calculated: they are only what was typed.
-const calcEmpties = (saved, draft, filledSales) => {
+// EMPTIES: Ending = Beginning + the FILLED Sales + the Variance (the pahiram: negative = borrowed)
+// - the Refill (those empties went out to be refilled).
+// Incoming and Total are not calculated: they are only what was typed.
+const calcEmpties = (saved, draft, filledSales, refill) => {
   const beginning = pick(draft?.beginning ?? '', saved.beginning)
   const variance = Number(saved.variance) || 0
-  return { beginning, variance, ending: beginning + filledSales + variance }
+  const beforeRefill = beginning + filledSales + variance // the empties the branch has to refill
+  return { beginning, variance, beforeRefill, refill, ending: beforeRefill - refill }
 }
 
-const filledSaved = (r) => ({ beginning: r.beginning, incoming: r.incoming, sales: r.sold })
+const filledSaved = (r) => ({
+  beginning: r.beginning,
+  incoming: r.incoming,
+  refill: Number(r.refill) || 0,
+  sales: r.sold,
+})
 const emptiesSaved = (e) => ({ beginning: e.beginning, variance: e.variance })
 
 // the message for a number that cannot be saved, or ''
@@ -131,7 +140,7 @@ export default function InventoryTable({
         setRows(
           addUp(
             filledResults.map((x) => x.data),
-            ['beginning', 'incoming', 'total', 'sold', 'orders_sold', 'ending']
+            ['beginning', 'incoming', 'refill', 'total', 'sold', 'orders_sold', 'ending']
           )
         )
       }
@@ -146,7 +155,7 @@ export default function InventoryTable({
           setEmptyRows(
             addUp(
               emptiesResults.map((x) => x.data),
-              ['beginning', 'incoming', 'total', 'ending', 'variance'],
+              ['beginning', 'incoming', 'refill', 'total', 'ending', 'variance'],
               ['incoming', 'total']
             )
           )
@@ -212,7 +221,12 @@ export default function InventoryTable({
       filled: Object.fromEntries(
         rows.map((r) => [
           r.size,
-          { beginning: String(r.beginning), incoming: String(r.incoming), sales: String(r.sold) },
+          {
+            beginning: String(r.beginning),
+            incoming: String(r.incoming),
+            refill: String(r.refill ?? 0),
+            sales: String(r.sold),
+          },
         ])
       ),
       empties: Object.fromEntries(
@@ -246,9 +260,9 @@ export default function InventoryTable({
       const d = drafts.filled?.[item.size]
       if (!d) return []
       const saved = filledSaved(item)
-      const row = { size: item.size, beginning: '', incoming: '', sales: '', variance: '' }
+      const row = { size: item.size, beginning: '', incoming: '', refill: '', sales: '', variance: '' }
       let changed = false
-      ;['beginning', 'incoming', 'sales'].forEach((field) => {
+      ;['beginning', 'incoming', 'refill', 'sales'].forEach((field) => {
         if (d[field] !== '' && Number(d[field]) !== saved[field]) {
           row[field] = d[field]
           changed = true
@@ -292,6 +306,17 @@ export default function InventoryTable({
       )
       if (p) problems.push(p)
     })
+    // a refill can never be more than the empties the branch has
+    if (SHOW_EMPTIES) {
+      emptyRows.forEach((e) => {
+        const v = liveEmpties(e)
+        if (v.refill > v.beforeRefill) {
+          problems.push(
+            `${sizeLabel(e.size)}: Refill (${v.refill}) cannot be more than the empties of the branch (${v.beforeRefill}). Put the rest in Incoming.`
+          )
+        }
+      })
+    }
     if (problems.length > 0) {
       setMessage(problems[0])
       return
@@ -376,8 +401,13 @@ export default function InventoryTable({
     const filledRow = rows.find((r) => r.size === e.size)
     return filledRow ? liveFilled(filledRow).sales : 0
   }
+  // the FILLED Refill of a size, also while typing
+  const refillOf = (e) => {
+    const filledRow = rows.find((r) => r.size === e.size)
+    return filledRow ? liveFilled(filledRow).refill : 0
+  }
   const liveEmpties = (e) =>
-    calcEmpties(emptiesSaved(e), drafts.empties[e.size], filledSalesOf(e))
+    calcEmpties(emptiesSaved(e), drafts.empties[e.size], filledSalesOf(e), refillOf(e))
 
   // a box to type a number in
   const box = (group, size, field) => (
@@ -409,7 +439,7 @@ export default function InventoryTable({
           )
         })}
       {options.remarks && (
-        <td rowSpan={7} className="border border-(color:--border) p-3 text-left align-top">
+        <td rowSpan={8} className="border border-(color:--border) p-3 text-left align-top">
           {editing ? (
             <textarea
               className="box-border h-full min-h-40 w-full resize-none rounded-md border border-(color:--border) p-2"
@@ -462,8 +492,9 @@ export default function InventoryTable({
 
       {editing && (
         <p className="mt-0 mb-4 max-w-200 text-[14px]">
-          FILLED: type Beginning, Incoming/Refill, and Sales (the orders in the Daily Sales Report
-          are already counted, shown as &quot;min&quot;). This changes the real stock. EMPTIES: type
+          FILLED: type Beginning, Incoming (new filled cylinders), Refill (the branch&apos;s empties
+          exchanged for filled ones, never more than the empties), and Sales (the orders in the Daily
+          Sales Report are already counted, shown as &quot;min&quot;). This changes the real stock. EMPTIES: type
           the Beginning, and the Incoming/Refill and Total if you want to record them (they are not
           calculated and change nothing else). The EMPTIES Ending Inventory is the Beginning plus the
           FILLED Sales, and updates by itself.
@@ -511,9 +542,19 @@ export default function InventoryTable({
               )}
 
               {bodyRow(
-                'Incoming/Refill',
+                'Incoming',
                 (r) => (editing ? box('filled', r.size, 'incoming') : r.incoming),
                 (e) => (editing ? box('empties', e.size, 'incoming') : (e.incoming ?? ''))
+              )}
+
+              {/* Refill: typed in FILLED; the same number goes out of the EMPTIES */}
+              {bodyRow(
+                'Refill',
+                (r) => (editing ? box('filled', r.size, 'refill') : (r.refill ?? 0)),
+                (e) => {
+                  const value = editing ? liveEmpties(e).refill : Number(e.refill) || 0
+                  return value > 0 ? <span title="Empties sent to be refilled">−{value}</span> : 0
+                }
               )}
 
               {bodyRow(
@@ -582,8 +623,9 @@ export default function InventoryTable({
       )}
 
       <p className="mt-4 mb-0 max-w-200 text-[14px] text-gray-600">
-        FILLED: Total = Beginning + Incoming/Refill, and Ending Inventory = Total − Sales (orange or
-        red when the stock is low). EMPTIES: Ending Inventory = Beginning + the FILLED Sales; the
+        FILLED: Total = Beginning + Incoming + Refill, and Ending Inventory = Total − Sales (orange or
+        red when the stock is low). EMPTIES: Ending Inventory = Beginning + the FILLED Sales − the
+        Refill (those empties were exchanged for filled ones); the
         Incoming/Refill and Total are only what you type and are not calculated. For now the Actual
         Count is the same as the Ending Inventory, so the Variance is 0. Tomorrow&apos;s Beginning is
         today&apos;s Ending Inventory.

@@ -14,10 +14,10 @@ const TABLE =
 const OVERALL = 0
 
 // the numbers of one size; for "All branches" they are added up
-const FIELDS = ['beginning', 'incoming', 'sold', 'filled', 'empty', 'total']
+const FIELDS = ['beginning', 'incoming', 'refill', 'sold', 'filled', 'empty', 'total']
 
 // Tank Count > Revolving (admin): the cylinders of a day, from the Stock Inventory.
-// FILLED: Beginning + Incoming - Sold = Ending. EMPTIES: the Ending of the EMPTIES.
+// FILLED: Beginning + Incoming + Refill - Sold = Ending. EMPTIES: the Ending of the EMPTIES.
 // Total cylinders = Filled Ending + Empties Ending. No numbers are typed here.
 export default function TankRevolving() {
   const [branch, setBranch] = useState(OVERALL)
@@ -67,6 +67,7 @@ export default function TankRevolving() {
         const t = row(x.size)
         t.beginning += Number(x.beginning) || 0
         t.incoming += Number(x.incoming) || 0
+        t.refill += Number(x.refill) || 0
         t.sold += Number(x.sold) || 0
         t.filled += Number(x.ending) || 0
       })
@@ -116,13 +117,14 @@ export default function TankRevolving() {
           <thead>
             <tr>
               <th rowSpan={2}>Size</th>
-              <th colSpan={4}>Filled</th>
+              <th colSpan={5}>Filled</th>
               <th rowSpan={2}>Empties</th>
               <th rowSpan={2}>Total cylinders</th>
             </tr>
             <tr>
               <th>Beginning</th>
               <th>Incoming</th>
+              <th>Refill</th>
               <th>Sold</th>
               <th>Ending</th>
             </tr>
@@ -133,6 +135,7 @@ export default function TankRevolving() {
                 <td className="font-semibold">{r.size}</td>
                 <td>{r.beginning}</td>
                 <td>{r.incoming}</td>
+                <td>{r.refill}</td>
                 <td>{r.sold}</td>
                 <td className="font-semibold">{r.filled}</td>
                 <td className="font-semibold">{r.empty}</td>
@@ -141,7 +144,7 @@ export default function TankRevolving() {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7}>No data</td>
+                <td colSpan={8}>No data</td>
               </tr>
             )}
           </tbody>
@@ -159,7 +162,7 @@ export default function TankRevolving() {
       </div>
 
       <p className="mt-3 mb-0 max-w-200 text-[13px] text-gray-600">
-        From the Stock Inventory of the chosen day. Filled: Beginning + Incoming − Sold = Ending.
+        From the Stock Inventory of the chosen day. Filled: Beginning + Incoming + Refill − Sold = Ending. A refill exchanges empties for filled ones, so it does not change the Total cylinders; only Incoming (new cylinders) raises it.
         Empties: the Ending Inventory of the EMPTIES. Total cylinders = Filled Ending + Empties.
       </p>
     </div>

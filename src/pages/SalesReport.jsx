@@ -143,7 +143,7 @@ export default function SalesReport({
   const setReportDate = onDateChange ?? setOwnDate
 
   const [extra, setExtra] = useState({ sizes: [], stock: [] })
-  // the cell being edited: { key: row key, field: 'name' | 'remarks' | 'discount' | 'utang', value }
+  // the cell being edited: { key: row key, field: 'name' | 'remarks' | 'discount' | 'utang' | 'size:<size>', value }
   // (for 'name' the value is { name, type }: the customer type is chosen in the name cell)
   const [cell, setCell] = useState(null)
   const savingCell = useRef(false) // stops Enter and clicking away from saving twice
@@ -369,9 +369,11 @@ export default function SalesReport({
           ? o.remarks || ''
           : field === 'utang'
             ? o.utang_status || ''
-            : discount > 0
-            ? discount.toFixed(2)
-            : ''
+            : field.startsWith('size:')
+              ? String(qtyOf(g, field.slice(5)) || '')
+              : discount > 0
+                ? discount.toFixed(2)
+                : ''
     cancelledCell.current = false
     setMessage('')
     setCell({ key: g.key, field, value })
@@ -493,6 +495,30 @@ export default function SalesReport({
     if (ok) setCell(null)
   }
 
+  // Size cells: how many cylinders of a size the row has. Typing a number in an empty size adds
+  // that size to the order; 0 removes it. Accepted orders take it from (or give it back to) the stock.
+  const qtyOf = (g, size) =>
+    g.orders
+      .filter((x) => x.item_name === 'LPG Cylinder ' + size)
+      .reduce((sum, x) => sum + x.quantity, 0)
+
+  const saveSize = async (g, size) => {
+    if (!cell || cancelledCell.current || savingCell.current) return
+    const qty = cell.value === '' ? 0 : Number(cell.value)
+    if (qty === qtyOf(g, size)) {
+      setCell(null)
+      return
+    }
+    savingCell.current = true
+    const ok = await callFunction('set_row_quantity', {
+      p_order_ids: g.orders.map((x) => x.id),
+      p_size: size,
+      p_quantity: qty,
+    })
+    savingCell.current = false
+    if (ok) setCell(null)
+  }
+
   // ---- Delete: tick the small boxes at the end of the rows, then delete them together ----
   const startDelete = () => {
     setMessage('')
@@ -584,8 +610,9 @@ export default function SalesReport({
           <>
             {' '}
             Click the row to accept it (only then is it taken from the stock).
-            Double-click a Customer name (to change the name or the type), Amount (for the
-            discount), Expenses, or Remark (Utang or Bayad Utang) cell to edit it. H = Household,
+            Double-click a Customer name (to change the name or the type), a size (to change the
+            quantity or add a size to the order; 0 removes it), Amount (for the discount), Expenses,
+            or Remark (Utang or Bayad Utang) cell to edit it. H = Household,
             C = Commercial, RTO = Retail Outlet. Press Enter to save or Esc to cancel.
           </>
         )}
@@ -777,12 +804,36 @@ export default function SalesReport({
                   <td>{o.customer_contact || ''}</td>
                   <td>{o.customer_address || ''}</td>
                   {(sizeList.length > 0 ? sizeList : ['']).map((s) => {
-                    const qty = g.orders
-                      .filter((x) => x.item_name === 'LPG Cylinder ' + s)
-                      .reduce((sum, x) => sum + x.quantity, 0)
+                    const qty = qtyOf(g, s)
+                    const field = `size:${s}`
                     return (
-                      <td key={s || 'none'} className="text-center">
-                        {qty > 0 ? qty : ''}
+                      <td
+                        key={s || 'none'}
+                        className={`text-center ${s ? EDITABLE : ''}`}
+                        onDoubleClick={() => s && startCell(g, field)}
+                      >
+                        {isEditing(g, field) ? (
+                          <>
+                            <input
+                              autoFocus
+                              className="box-border block w-full min-w-0 p-1 text-center text-[13px]"
+                              inputMode="numeric"
+                              maxLength={6}
+                              placeholder="0"
+                              value={cell.value}
+                              onChange={(e) => setCellValue(e.target.value.replace(/\D/g, ''))}
+                              onKeyDown={cellKeys}
+                              onBlur={() => saveSize(g, s)}
+                            />
+                            <div className="text-[11px] text-gray-500">
+                              {stockOf(s)?.quantity ?? 0} in stock
+                            </div>
+                          </>
+                        ) : qty > 0 ? (
+                          qty
+                        ) : (
+                          ''
+                        )}
                       </td>
                     )
                   })}

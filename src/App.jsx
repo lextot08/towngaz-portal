@@ -27,6 +27,8 @@ function StatusScreen({ title, text, link }) {
 export default function App() {
   const [session, setSession] = useState(undefined)
   const [profile, setProfile] = useState(undefined)
+  // true while the login page checks the account's branch (the portal must not open yet)
+  const [checkingLogin, setCheckingLogin] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -50,7 +52,7 @@ export default function App() {
   }, [userId])
 
   if (session === undefined) return <p>Loading...</p>
-  if (!session) return <Login />
+  if (!session || checkingLogin) return <Login onCheckingChange={setCheckingLogin} />
   if (profile === undefined) return <p>Loading...</p>
 
   if (!profile) {
