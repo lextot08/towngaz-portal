@@ -101,7 +101,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="m-0 text-2xl">Tank Count - Borrowed</h1>
+          <h1 className="m-0 text-2xl">Borrowed</h1>
           <p className="m-0 text-[14px] text-gray-500">
             {branch === OVERALL ? 'All branches' : branchName(branch)}
           </p>

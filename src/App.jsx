@@ -45,7 +45,7 @@ export default function App() {
     if (!userId) return
     supabase
       .from('profiles')
-      .select('role, status, branch')
+      .select('role, status, branch, full_name')
       .eq('id', userId)
       .maybeSingle()
       .then(({ data }) => setProfile(data ?? null))
@@ -93,7 +93,7 @@ export default function App() {
     if (!profile.branch) {
       return <StatusScreen title="No branch assigned" text="Please contact the admin." />
     }
-    return <Staff user={session.user} branch={profile.branch} />
+    return <Staff branch={profile.branch} fullName={profile.full_name} />
   }
 
   return (

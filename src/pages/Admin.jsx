@@ -1,89 +1,40 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
-import { confirmDialog } from '../components/Confirm'
-import { branchName, BRANCHES } from '../lib/branches'
+import { useState } from 'react'
+import { BRANCHES } from '../lib/branches'
 import StaffLayout from '../components/StaffLayout'
 import BranchView from './BranchView'
-import ManageAccounts from './ManageAccounts'
+import ManageStaff from './ManageStaff'
 import Recommendations from './Recommendations'
 import Analytics from './Analytics'
-import AddStock from './AddStock'
-import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
 import MonthlySales from './MonthlySales'
 import YearEndReport from './YearEndReport'
-import TankBorrowed from './TankBorrowed'
 import TankRevolving from './TankRevolving'
-import AuditLog from './AuditLog'
+import AdminHome from './AdminHome'
+import CustomerProfile from './CustomerProfile'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
 
-export default function Admin({ user }) {
+export default function Admin() {
   const [tab, setTab] = useState('home')
   const [branch, setBranch] = useState(OVERALL) // "Overall" or the branch chosen under Branches
-  const [tankView, setTankView] = useState('revolving') // the page chosen under Tank Count
   const [view, setView] = useState('main')
-  const [pending, setPending] = useState([])
-  const [accountsVersion, setAccountsVersion] = useState(0)
-  const [message, setMessage] = useState('')
 
-  const loadPending = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'staff')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-    if (error) setMessage(error.message)
-    else setPending(data)
-  }
-
-  useEffect(() => {
-    loadPending()
-  }, [])
-
-  const decide = async (id, status) => {
-    const action = status === 'approved' ? 'approve' : 'reject'
-    if (!(await confirmDialog(`Are you sure you want to ${action} this account?`))) return
-    setMessage('')
-    const { error } = await supabase
-      .from('profiles')
-      .update({ status })
-      .eq('id', id)
-    if (error) setMessage(error.message)
-    loadPending()
-    setAccountsVersion((v) => v + 1) // reloads the account list below
-  }
-
-  if (view === 'addstock') {
-    return <AddStock branch={ADMIN_BRANCH} onBack={() => setView('main')} />
-  }
-  if (view === 'manualorder') {
-    return <ManualOrder branch={ADMIN_BRANCH} onBack={() => setView('main')} />
-  }
   if (view === 'updateprice') {
     return <UpdatePrice branch={ADMIN_BRANCH} onBack={() => setView('main')} />
   }
 
-  // clicking Branches from another page starts at Overall, and Tank Count at Revolving
+  // clicking Branches from another page starts at Overall
   const selectTab = (key) => {
     if (key === 'branches' && tab !== 'branches') setBranch(OVERALL)
-    if (key === 'tankcount' && tab !== 'tankcount') setTankView('revolving')
     setTab(key)
   }
 
-  // a smaller button under Branches or Tank Count
+  // a branch under Branches
   const selectChild = (parentKey, childKey) => {
-    if (parentKey === 'branches') setBranch(Number(childKey))
-    else setTankView(childKey)
+    setBranch(Number(childKey))
     setTab(parentKey)
   }
-
-  const TANK_VIEWS = [
-    { key: 'revolving', label: 'Revolving' },
-    { key: 'borrowed', label: 'Borrowed' },
-  ]
 
   const items = [
     { key: 'home', label: 'Admin Home', icon: 'home' },
@@ -96,75 +47,30 @@ export default function Admin({ user }) {
         ...BRANCHES.map((b) => ({ key: String(b.id), label: b.name })),
       ],
     },
-    { key: 'tankcount', label: 'Tank Count', icon: 'box', subItems: TANK_VIEWS },
+    { key: 'tankcount', label: 'Tanks Count', icon: 'box' },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
     { key: 'yearend', label: 'Year End Report', icon: 'file' },
-    { key: 'audit', label: 'Audit Log', icon: 'list' },
+    { key: 'customers', label: 'Customer Profile', icon: 'idcard' },
     { key: 'recommendation', label: 'Recommendation', icon: 'chart' },
     { key: 'analytics', label: 'Analytics', icon: 'trending' },
-    {
-      key: 'accounts',
-      label: `Manage account${pending.length > 0 ? ` (${pending.length})` : ''}`,
-      icon: 'users',
-    },
+    { key: 'accounts', label: 'Manage Staff', icon: 'users' },
   ]
-
-  // pending accounts, shown at the top of Manage account
-  const pendingSection = (
-    <div className="mb-8">
-      <h3 className="mt-0 mb-2 text-lg">Pending staff ({pending.length})</h3>
-      {message && <p className="mt-0">{message}</p>}
-      <div className="overflow-x-auto rounded-xl border border-(color:--border) bg-white">
-        <table className="w-full [&_td]:p-2 [&_th]:p-2">
-          <thead>
-            <tr>
-              <th>Name</th><th>Email</th><th>Address</th>
-              <th>Contact</th><th>Branch</th><th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pending.map((p) => (
-              <tr key={p.id}>
-                <td>{p.full_name}</td>
-                <td>{p.email}</td>
-                <td>{p.address}</td>
-                <td>{p.contact_number}</td>
-                <td>{branchName(p.branch)}</td>
-                <td>
-                  <button onClick={() => decide(p.id, 'approved')}>Approve</button>{' '}
-                  <button onClick={() => decide(p.id, 'rejected')}>Reject</button>
-                </td>
-              </tr>
-            ))}
-            {pending.length === 0 && (
-              <tr><td colSpan="6">No pending staff</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
 
   return (
     <StaffLayout
       items={items}
       active={tab}
       onSelect={selectTab}
-      activeChild={tab === 'tankcount' ? tankView : String(branch)}
+      activeChild={String(branch)}
       onSelectChild={selectChild}
     >
       {tab === 'home' && (
-        <div>
-          <h1 className="mt-0 mb-4 text-2xl">Towngaz Admin</h1>
-          <p>Logged in as {user.email}</p>
-          <p>Pending staff waiting for approval: {pending.length}</p>
-          <p className="mt-6">Staff tools for {branchName(ADMIN_BRANCH)}</p>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setView('addstock')}>Add stock</button>
-            <button onClick={() => setView('manualorder')}>Manual add order</button>
-            <button onClick={() => setView('updateprice')}>Update price</button>
-          </div>
-        </div>
+        <AdminHome
+          adminBranch={ADMIN_BRANCH}
+          onOpen={selectTab}
+          onOpenBranch={(id) => selectChild('branches', id)}
+          onUpdatePrice={() => setView('updateprice')}
+        />
       )}
 
       {tab === 'branches' && <BranchView branch={branch} />}
@@ -173,20 +79,15 @@ export default function Admin({ user }) {
 
       {tab === 'yearend' && <YearEndReport />}
 
-      {tab === 'audit' && <AuditLog />}
+      {tab === 'customers' && <CustomerProfile />}
 
-      {tab === 'tankcount' && tankView === 'borrowed' && <TankBorrowed />}
-
-      {tab === 'tankcount' && tankView === 'revolving' && <TankRevolving />}
+      {tab === 'tankcount' && <TankRevolving />}
 
       {tab === 'recommendation' && <Recommendations mode="admin" />}
 
       {tab === 'analytics' && <Analytics />}
 
-      {tab === 'accounts' && (
-        <ManageAccounts key={accountsVersion} mode="admin" top={pendingSection} hidePending />
-      )}
-
+      {tab === 'accounts' && <ManageStaff />}
     </StaffLayout>
   )
 }

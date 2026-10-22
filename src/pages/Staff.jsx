@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { branchName } from '../lib/branches'
 import StaffLayout from '../components/StaffLayout'
-import AddStock from './AddStock'
-import ManualOrder from './ManualOrder'
 import UpdatePrice from './UpdatePrice'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
-import Ledger from './Ledger'
+import TankBorrowed from './TankBorrowed'
+import TankRevolving from './TankRevolving'
 import MonthlySales from './MonthlySales'
 import YearEndReport from './YearEndReport'
+import CustomerProfile from './CustomerProfile'
+import StaffHome from './StaffHome'
 
-export default function Staff({ user, branch }) {
+export default function Staff({ branch, fullName }) {
   const [view, setView] = useState('main')
   const [tab, setTab] = useState('home')
   const [orders, setOrders] = useState([])
@@ -31,30 +31,6 @@ export default function Staff({ user, branch }) {
     loadAll()
   }, [])
 
-  if (view === 'addstock') {
-    return (
-      <AddStock
-        branch={branch}
-        onBack={() => {
-          setView('main')
-          loadAll()
-        }}
-      />
-    )
-  }
-
-  if (view === 'manualorder') {
-    return (
-      <ManualOrder
-        branch={branch}
-        onBack={() => {
-          setView('main')
-          loadAll()
-        }}
-      />
-    )
-  }
-
   if (view === 'updateprice') {
     return (
       <UpdatePrice
@@ -67,21 +43,23 @@ export default function Staff({ user, branch }) {
     )
   }
 
-  const pendingOrders = orders.filter((o) => o.status === 'pending')
-  const acceptedOrders = orders.filter((o) => o.status === 'accepted')
-  const toDeliver = acceptedOrders.filter((o) => o.delivery_status !== 'delivered')
+  const toDeliver = orders.filter(
+    (o) => o.status === 'pending' || (o.customer_id && o.delivery_status === 'out_for_delivery')
+  )
 
   const items = [
     { key: 'home', label: 'Home', icon: 'home' },
     { key: 'inventory', label: 'Stock Inventory', icon: 'box' },
+    { key: 'tankcount', label: 'Tanks Count', icon: 'list' },
     {
       key: 'report',
-      label: `Daily Sales Report${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ''}`,
+      label: `Daily Sales Report${toDeliver.length > 0 ? ` (${toDeliver.length})` : ''}`,
       icon: 'report',
     },
-    { key: 'ledger', label: 'Ledger', icon: 'file' },
+    { key: 'borrowed', label: 'Borrowed', icon: 'repeat' },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
     { key: 'yearend', label: 'Year End Report', icon: 'file' },
+    { key: 'customers', label: 'Customer Profile', icon: 'idcard' },
   ]
 
   return (
@@ -89,20 +67,18 @@ export default function Staff({ user, branch }) {
       {message && <p className="mt-0">{message}</p>}
 
       {tab === 'home' && (
-        <div>
-          <h1 className="mt-0 mb-4 text-2xl">{branchName(branch)} Staff</h1>
-          <p>Logged in as {user.email}</p>
-          <p>Orders waiting to be accepted: {pendingOrders.length}</p>
-          <p>Orders to deliver: {toDeliver.length}</p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <button onClick={() => setView('addstock')}>Add stock</button>
-            <button onClick={() => setView('manualorder')}>Manual add order</button>
-            <button onClick={() => setView('updateprice')}>Update price</button>
-          </div>
-        </div>
+        <StaffHome
+          branch={branch}
+          fullName={fullName}
+          orders={orders}
+          onOpen={setTab}
+          onUpdatePrice={() => setView('updateprice')}
+        />
       )}
 
       {tab === 'inventory' && <InventoryTable branch={branch} canEdit />}
+
+      {tab === 'tankcount' && <TankRevolving branch={branch} />}
 
       {tab === 'report' && (
         <SalesReport branch={branch} orders={orders} reload={loadAll} canEdit showRefresh />
@@ -112,8 +88,10 @@ export default function Staff({ user, branch }) {
 
       {tab === 'yearend' && <YearEndReport branch={branch} />}
 
-      {/* Ledger: its own list, not linked to the orders */}
-      {tab === 'ledger' && <Ledger branch={branch} />}
+      {tab === 'customers' && <CustomerProfile branch={branch} />}
+
+      {/* Borrowed: the orders marked Utang (and Bayad Utang) in the Daily Sales Report */}
+      {tab === 'borrowed' && <TankBorrowed branch={branch} />}
 
     </StaffLayout>
   )

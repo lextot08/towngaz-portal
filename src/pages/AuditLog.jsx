@@ -93,7 +93,7 @@ const changesOf = (log) =>
         )
 
 // Audit Log (admin): every change made in the portal and the website, with who did it.
-export default function AuditLog() {
+export default function AuditLog({ roles = null }) {
   const [date, setDate] = useState('') // '' means today
   const [branch, setBranch] = useState(OVERALL) // 0 = all branches
   const [logs, setLogs] = useState([])
@@ -116,6 +116,7 @@ export default function AuditLog() {
       .order('created_at', { ascending: false })
       .limit(1000)
     if (branch !== OVERALL) query = query.eq('branch', branch)
+    if (roles) query = query.in('actor_role', roles)
     const { data, error } = await query
     if (error) setMessage(error.message)
     else setLogs(data)

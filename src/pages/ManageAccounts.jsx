@@ -25,7 +25,7 @@ const emptyForm = {
 const FIELD = 'grid gap-1 text-[14px]'
 const CANCEL_BTN = 'flex-1 border border-(color:--border) bg-white text-(color:--text)'
 
-export default function ManageAccounts({ mode, branch, top = null, hidePending = false }) {
+export default function ManageAccounts({ mode, branch }) {
   const isAdmin = mode === 'admin'
   const [accounts, setAccounts] = useState([])
   const [filterBranch, setFilterBranch] = useState('')
@@ -203,13 +203,12 @@ export default function ManageAccounts({ mode, branch, top = null, hidePending =
   }
 
   const isNew = editing === 'new'
-  const visibleAccounts = accounts.filter((a) => !hidePending || a.status !== 'pending')
+  const visibleAccounts = accounts
 
   return (
     <div>
-      <h2>Manage Account</h2>
+      <h2 className="mt-0">Staff Accounts</h2>
       {message && <p>{message}</p>}
-      {top}
 
       <div className="mb-4">
         {isAdmin && (

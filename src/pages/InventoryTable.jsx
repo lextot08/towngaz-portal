@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { confirmDialog } from '../components/Confirm'
 import { branchName, BRANCHES } from '../lib/branches'
@@ -8,6 +8,41 @@ import DateButton from '../components/DateButton'
 
 // Set to false to hide the EMPTIES columns.
 const SHOW_EMPTIES = true
+
+// the lines of the REMARKS column: a label, a total box, and a note
+const REMARK_LINES = [
+  { key: 'swap', label: 'Swap' },
+  { key: 'reject', label: 'Reject' },
+  { key: 'backload', label: 'Backload' },
+  { key: 'borrowed', label: 'Borrowed' },
+  { key: 'sell', label: 'Sell' },
+  { key: 'buy', label: 'Buy' },
+]
+
+// The notes of the lines are saved together in the day's remarks, as
+// {"lines": {"swap": "...", ...}}. A remark saved before (plain text) is kept as "old".
+const parseRemarks = (text) => {
+  if (!text) return { lines: {}, old: '' }
+  try {
+    const value = JSON.parse(text)
+    if (value && typeof value === 'object' && value.lines) {
+      return { lines: value.lines, old: value.old || '' }
+    }
+  } catch {
+    // plain text: a remark from before the lines
+  }
+  return { lines: {}, old: text }
+}
+
+const encodeRemarks = ({ lines, old }) => {
+  const kept = Object.fromEntries(
+    Object.entries(lines)
+      .map(([key, note]) => [key, String(note || '').trim()])
+      .filter(([, note]) => note !== '')
+  )
+  if (Object.keys(kept).length === 0 && !old) return ''
+  return JSON.stringify(old ? { lines: kept, old } : { lines: kept })
+}
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -22,26 +57,39 @@ const sizeLabel = (size) => size.replace(/kg$/i, ' KG').toUpperCase()
 const parse = (text) => (text === '' ? null : Number(text))
 const pick = (text, saved) => parse(text) ?? saved
 
-// FILLED: Total = Beginning + Incoming + Refill. Ending = Total - Sales. Actual Count = Ending.
-// Incoming = new filled cylinders. Refill = the branch's empties exchanged for filled ones.
-// "saved" are the numbers from the database, "draft" is what is typed in Edit mode.
+// FILLED (the branch's own stock):
+//   Total = Beginning + Incoming/Refill. Ending = Total - Sales.
+//   Variance is typed by the staff (leaked tanks, swaps between branches): - takes out, + adds.
+//   Actual Count = Ending + Variance, and the next day's Beginning is the Actual Count.
+// ("refill" only has numbers for the days when Refill was a row of its own; it is counted in
+// Incoming/Refill.) "saved" are the numbers from the database, "draft" is what is typed in Edit mode.
 const calcFilled = (saved, draft) => {
   const beginning = pick(draft?.beginning ?? '', saved.beginning)
   const incoming = pick(draft?.incoming ?? '', saved.incoming)
   const refill = pick(draft?.refill ?? '', saved.refill)
   const sales = pick(draft?.sales ?? '', saved.sales)
+  const variance = pickSigned(draft?.variance ?? '', saved.variance)
   const total = beginning + incoming + refill
-  return { beginning, incoming, refill, sales, total, ending: total - sales }
+  const ending = total - sales
+  return { beginning, incoming, refill, sales, total, ending, variance, actual: ending + variance }
 }
 
-// EMPTIES: Ending = Beginning + the FILLED Sales + the Variance (the pahiram: negative = borrowed)
-// - the Refill (those empties went out to be refilled).
-// Incoming and Total are not calculated: they are only what was typed.
-const calcEmpties = (saved, draft, filledSales, refill) => {
+// EMPTIES (based on the customers):
+//   Total = Beginning + Incoming (typed) - the restock (the FILLED Incoming/Refill takes empties).
+//   Sales = the empties given back = FILLED Sales - the cylinders sold as Utang.
+//   Ending = Total + Sales. Variance = the cylinders sold as Utang (the customer kept the tank).
+//   Actual Count = Ending, and the next day's Beginning is the Actual Count.
+const calcEmpties = (saved, draft, filledSales, savedFilledSales, restock) => {
   const beginning = pick(draft?.beginning ?? '', saved.beginning)
-  const variance = Number(saved.variance) || 0
-  const beforeRefill = beginning + filledSales + variance // the empties the branch has to refill
-  return { beginning, variance, beforeRefill, refill, ending: beforeRefill - refill }
+  const incoming =
+    draft?.incoming === undefined ? saved.incoming : draft.incoming === '' ? 0 : Number(draft.incoming)
+  const total = beginning + incoming - restock
+  // extra FILLED sales typed here are normal exchanges: their empties come back
+  const returned = saved.returned + (filledSales - savedFilledSales)
+  const ending = total + returned
+  // the empties the branch has before the restock: a restock can never be more
+  const beforeRestock = beginning + incoming + returned
+  return { beginning, incoming, restock, total, returned, ending, variance: saved.variance, actual: ending, beforeRestock }
 }
 
 const filledSaved = (r) => ({
@@ -49,8 +97,17 @@ const filledSaved = (r) => ({
   incoming: r.incoming,
   refill: Number(r.refill) || 0,
   sales: r.sold,
+  variance: Number(r.variance) || 0,
 })
-const emptiesSaved = (e) => ({ beginning: e.beginning, variance: e.variance })
+const emptiesSaved = (e) => ({
+  beginning: e.beginning,
+  incoming: Number(e.incoming) || 0,
+  returned: Number(e.sales) || 0,
+  variance: Number(e.variance) || 0,
+})
+
+// a typed number that can be negative ("-2"); "-" alone or empty = unchanged
+const pickSigned = (text, saved) => (text === '' || text === '-' ? saved : Number(text))
 
 // the message for a number that cannot be saved, or ''
 const filledProblem = (name, v, minSales) => {
@@ -58,6 +115,7 @@ const filledProblem = (name, v, minSales) => {
     return `${name}: Sales cannot be lower than ${minSales} (the orders already in the Daily Sales Report)`
   }
   if (v.ending < 0) return `${name}: Sales (${v.sales}) cannot be more than the Total (${v.total})`
+  if (v.actual < 0) return `${name}: the Actual Count cannot be below 0 (Ending ${v.ending}, Variance ${v.variance})`
   return ''
 }
 
@@ -80,7 +138,7 @@ export default function InventoryTable({
   const [message, setMessage] = useState('')
   const [editing, setEditing] = useState(false)
   const [drafts, setDrafts] = useState({ filled: {}, empties: {} })
-  const [remarksDraft, setRemarksDraft] = useState('')
+  const [remarksDraft, setRemarksDraft] = useState({ lines: {}, old: '' }) // the notes while editing
   const [saving, setSaving] = useState(false)
 
   const shownDate = date || todayString()
@@ -140,7 +198,8 @@ export default function InventoryTable({
         setRows(
           addUp(
             filledResults.map((x) => x.data),
-            ['beginning', 'incoming', 'refill', 'total', 'sold', 'orders_sold', 'ending']
+            ['beginning', 'incoming', 'refill', 'total', 'sold', 'orders_sold', 'ending', 'actual', 'variance'],
+            ['actual', 'variance']
           )
         )
       }
@@ -155,24 +214,33 @@ export default function InventoryTable({
           setEmptyRows(
             addUp(
               emptiesResults.map((x) => x.data),
-              ['beginning', 'incoming', 'refill', 'total', 'ending', 'variance'],
+              ['beginning', 'incoming', 'refill', 'total', 'sales', 'ending', 'actual', 'variance'],
               ['incoming', 'total']
             )
           )
         }
       }
 
-      // the remarks of every branch for that day, one line per branch
+      // the notes of every branch for that day: each line shows the notes of all branches
       const remarksResult = await supabase
         .from('inventory_remarks')
         .select('branch, remarks')
         .eq('day', shownDate)
         .order('branch')
-      setRemarks(
-        (remarksResult.data || [])
-          .filter((r) => r.remarks)
-          .map((r) => `${branchName(r.branch)}: ${r.remarks}`)
+      const parsed = (remarksResult.data || []).map((r) => ({
+        name: branchName(r.branch),
+        ...parseRemarks(r.remarks),
+      }))
+      const joinNotes = (pick) =>
+        parsed
+          .filter((p) => pick(p))
+          .map((p) => `${p.name}: ${pick(p)}`)
           .join('\n')
+      setRemarks(
+        encodeRemarks({
+          lines: Object.fromEntries(REMARK_LINES.map((l) => [l.key, joinNotes((p) => p.lines[l.key])])),
+          old: joinNotes((p) => p.old),
+        })
       )
 
       setLevels(await loadLowLevels(supabase))
@@ -226,6 +294,7 @@ export default function InventoryTable({
             incoming: String(r.incoming),
             refill: String(r.refill ?? 0),
             sales: String(r.sold),
+            variance: String(Number(r.variance) || 0),
           },
         ])
       ),
@@ -235,19 +304,21 @@ export default function InventoryTable({
           {
             beginning: String(e.beginning),
             incoming: textOf(e.incoming), // empty = nothing typed
-            total: textOf(e.total),
           },
         ])
       ),
     })
-    setRemarksDraft(remarks)
+    setRemarksDraft(parseRemarks(remarks))
     setMessage('')
     setEditing(true)
   }
 
-  // only digits are allowed: no minus sign, decimal point, or letters
+  // only digits are allowed (the FILLED Variance can also start with a minus sign)
   const setDraft = (group, size, field) => (e) => {
-    const value = e.target.value.replace(/\D/g, '')
+    const value =
+      field === 'variance'
+        ? e.target.value.replace(/[^\d-]/g, '').replace(/(?!^)-/g, '')
+        : e.target.value.replace(/\D/g, '')
     setDrafts((current) => ({
       ...current,
       [group]: { ...current[group], [size]: { ...current[group][size], [field]: value } },
@@ -262,8 +333,8 @@ export default function InventoryTable({
       const saved = filledSaved(item)
       const row = { size: item.size, beginning: '', incoming: '', refill: '', sales: '', variance: '' }
       let changed = false
-      ;['beginning', 'incoming', 'refill', 'sales'].forEach((field) => {
-        if (d[field] !== '' && Number(d[field]) !== saved[field]) {
+      ;['beginning', 'incoming', 'refill', 'sales', 'variance'].forEach((field) => {
+        if (d[field] !== undefined && d[field] !== '' && d[field] !== '-' && Number(d[field]) !== saved[field]) {
           row[field] = d[field]
           changed = true
         }
@@ -271,7 +342,8 @@ export default function InventoryTable({
       return changed ? [row] : []
     })
 
-  // EMPTIES: Beginning (empty = unchanged), Incoming/Refill and Total ('clear' = back to empty)
+  // EMPTIES: Beginning (empty = unchanged) and Incoming ('clear' = back to empty).
+  // Everything else of the EMPTIES is calculated.
   const collectEmptiesChanges = () =>
     emptyRows.flatMap((e) => {
       const d = drafts.empties?.[e.size]
@@ -282,14 +354,13 @@ export default function InventoryTable({
         row.beginning = d.beginning
         changed = true
       }
-      ;['incoming', 'total'].forEach((field) => {
-        const saved = textOf(e[field])
-        const same = d[field] === saved || (d[field] !== '' && saved !== '' && Number(d[field]) === Number(saved))
-        if (!same) {
-          row[field] = d[field] === '' ? 'clear' : d[field]
-          changed = true
-        }
-      })
+      const saved = textOf(e.incoming)
+      const same =
+        d.incoming === saved || (d.incoming !== '' && saved !== '' && Number(d.incoming) === Number(saved))
+      if (!same) {
+        row.incoming = d.incoming === '' ? 'clear' : d.incoming
+        changed = true
+      }
       return changed ? [row] : []
     })
 
@@ -310,9 +381,9 @@ export default function InventoryTable({
     if (SHOW_EMPTIES) {
       emptyRows.forEach((e) => {
         const v = liveEmpties(e)
-        if (v.refill > v.beforeRefill) {
+        if (v.restock > v.beforeRestock) {
           problems.push(
-            `${sizeLabel(e.size)}: Refill (${v.refill}) cannot be more than the empties of the branch (${v.beforeRefill}). Put the rest in Incoming.`
+            `${sizeLabel(e.size)}: Incoming/Refill (${v.restock}) cannot be more than the empties of the branch (${v.beforeRestock})`
           )
         }
       })
@@ -324,7 +395,7 @@ export default function InventoryTable({
 
     const filledChanges = collectFilledChanges()
     const emptiesChanges = SHOW_EMPTIES ? collectEmptiesChanges() : []
-    const remarksChanged = remarksDraft.trim() !== remarks
+    const remarksChanged = encodeRemarks(remarksDraft) !== encodeRemarks(parseRemarks(remarks))
 
     if (filledChanges.length === 0 && emptiesChanges.length === 0 && !remarksChanged) {
       setMessage('Nothing was changed')
@@ -381,7 +452,7 @@ export default function InventoryTable({
       const { error } = await supabase.rpc('save_inventory_remarks', {
         p_branch: branch,
         p_day: shownDate,
-        p_remarks: remarksDraft.trim(),
+        p_remarks: encodeRemarks(remarksDraft),
       })
       if (error) return fail(`The numbers were saved, but the remarks were not: ${error.message}`)
     }
@@ -392,6 +463,9 @@ export default function InventoryTable({
     setMessage('Saved')
   }
 
+  // the notes of the REMARKS lines, as saved
+  const shownRemarks = parseRemarks(remarks)
+
   const sizeCount = rows.length
   const columns = SHOW_EMPTIES ? sizeCount * 2 : sizeCount
 
@@ -401,19 +475,27 @@ export default function InventoryTable({
     const filledRow = rows.find((r) => r.size === e.size)
     return filledRow ? liveFilled(filledRow).sales : 0
   }
-  // the FILLED Refill of a size, also while typing
-  const refillOf = (e) => {
+  // the FILLED Incoming/Refill of a size (the restock), also while typing
+  const restockOf = (e) => {
     const filledRow = rows.find((r) => r.size === e.size)
-    return filledRow ? liveFilled(filledRow).refill : 0
+    if (!filledRow) return 0
+    const v = liveFilled(filledRow)
+    return v.incoming + v.refill
   }
+  const savedFilledSalesOf = (e) => Number(rows.find((r) => r.size === e.size)?.sold) || 0
   const liveEmpties = (e) =>
-    calcEmpties(emptiesSaved(e), drafts.empties[e.size], filledSalesOf(e), refillOf(e))
+    calcEmpties(emptiesSaved(e), drafts.empties[e.size], filledSalesOf(e), savedFilledSalesOf(e), restockOf(e))
+
+  // REMARKS > Borrowed: the cylinders sold as Utang that day (the EMPTIES Variance of every size)
+  const borrowedTotal = emptyRows.reduce((sum, e) => sum + (Number(e.variance) || 0), 0)
 
   // a box to type a number in
   const box = (group, size, field) => (
     <input
       className={NUMBER_INPUT}
-      inputMode="numeric"
+      inputMode={field === 'variance' ? 'text' : 'numeric'}
+      placeholder={field === 'variance' ? '0' : undefined}
+      title={field === 'variance' ? 'Use a minus sign to take out, for example -2' : undefined}
       maxLength={6}
       value={drafts[group]?.[size]?.[field] ?? ''}
       onChange={setDraft(group, size, field)}
@@ -439,17 +521,56 @@ export default function InventoryTable({
           )
         })}
       {options.remarks && (
-        <td rowSpan={8} className="border border-(color:--border) p-3 text-left align-top">
-          {editing ? (
-            <textarea
-              className="box-border h-full min-h-40 w-full resize-none rounded-md border border-(color:--border) p-2"
-              value={remarksDraft}
-              onChange={(e) => setRemarksDraft(e.target.value)}
-              placeholder="Remarks of the day"
-            />
-          ) : (
-            <span className="whitespace-pre-wrap">{remarks}</span>
-          )}
+        // h-px + min-h-full: the remark lines stretch over the whole height of the table
+        <td rowSpan={7} className="h-px border border-(color:--border) p-0 text-left align-top">
+          {/* the remark lines: label, total (filled in later), note.
+              A grid with equal rows: every line is as tall as the tallest one, and together
+              they fill at least the whole column (a long note makes all lines taller). */}
+          <div className="box-border grid min-h-full auto-rows-fr grid-cols-[36%_14%_50%] text-[13px]">
+            {REMARK_LINES.map((line, i) => {
+              // the last line has no line under it (the table's own border is there)
+              const under = i < REMARK_LINES.length - 1 || shownRemarks.old ? 'border-b' : ''
+              return (
+              <Fragment key={line.key}>
+                <div className={`flex items-center ${under} border-(color:--border) px-3 py-1.5 font-medium uppercase`}>
+                  {i + 1}. {line.label}
+                </div>
+                <div className={`flex items-center justify-center ${under} border-l border-(color:--border) px-2 py-1.5 font-semibold`}>
+                  {/* total: Borrowed = the cylinders sold as Utang; the others are blank for now */}
+                  {line.key === 'borrowed' && borrowedTotal > 0 ? borrowedTotal : ''}
+                </div>
+                <div className={`${under} border-l border-(color:--border) px-2 py-1 [overflow-wrap:anywhere]`}>
+                  {editing ? (
+                    <textarea
+                      className="box-border block h-full min-h-10 w-full min-w-0 resize-none rounded-md border border-(color:--border) p-1 text-[13px]"
+                      placeholder="Note"
+                      value={remarksDraft.lines[line.key] ?? ''}
+                      onChange={(e) =>
+                        setRemarksDraft((d) => ({
+                          ...d,
+                          lines: { ...d.lines, [line.key]: e.target.value },
+                        }))
+                      }
+                    />
+                  ) : (
+                    <span className="whitespace-pre-wrap">{shownRemarks.lines[line.key] || ''}</span>
+                  )}
+                </div>
+              </Fragment>
+              )
+            })}
+            {/* a remark saved before the lines existed (plain text): kept and shown here */}
+            {shownRemarks.old && (
+              <>
+                <div className="col-span-2 flex items-center px-3 py-1.5 text-[12px] text-gray-500">
+                  Earlier note
+                </div>
+                <div className="border-l border-(color:--border) px-2 py-1.5 whitespace-pre-wrap text-gray-600">
+                  {shownRemarks.old}
+                </div>
+              </>
+            )}
+          </div>
         </td>
       )}
     </tr>
@@ -492,12 +613,12 @@ export default function InventoryTable({
 
       {editing && (
         <p className="mt-0 mb-4 max-w-200 text-[14px]">
-          FILLED: type Beginning, Incoming (new filled cylinders), Refill (the branch&apos;s empties
-          exchanged for filled ones, never more than the empties), and Sales (the orders in the Daily
-          Sales Report are already counted, shown as &quot;min&quot;). This changes the real stock. EMPTIES: type
-          the Beginning, and the Incoming/Refill and Total if you want to record them (they are not
-          calculated and change nothing else). The EMPTIES Ending Inventory is the Beginning plus the
-          FILLED Sales, and updates by itself.
+          FILLED: type Beginning, Incoming/Refill (the restock: the same number is taken out of the
+          EMPTIES, so it can never be more than the empties), Sales (the orders in the Daily Sales
+          Report are already counted, shown as &quot;min&quot;), and Variance for the branch&apos;s own
+          changes, for example -2 for leaked tanks, -3 when giving 3 to another branch, +3 when
+          receiving 3. This changes the real stock. EMPTIES: type the Beginning and the Incoming;
+          everything else updates by itself.
         </p>
       )}
 
@@ -509,7 +630,7 @@ export default function InventoryTable({
             tableClass ?? 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'
           }
         >
-          <table className="w-full min-w-[900px]">
+          <table className="w-full min-w-[1100px]">
             <thead>
               <tr>
                 <th rowSpan={3} className={`${CELL} min-w-40 text-left align-top`}>
@@ -517,7 +638,7 @@ export default function InventoryTable({
                   <div className="font-normal">{shownDate}</div>
                 </th>
                 <th colSpan={columns} className={CELL}>STOCK INVENTORY</th>
-                <th rowSpan={3} className={`${CELL} min-w-48`}>REMARKS</th>
+                <th rowSpan={3} className={`${CELL} w-[30%] min-w-80`}>REMARKS</th>
               </tr>
               <tr>
                 <th colSpan={sizeCount} className={CELL}>FILLED</th>
@@ -541,26 +662,40 @@ export default function InventoryTable({
                 { remarks: true }
               )}
 
+              {/* Incoming/Refill: typed in FILLED; the same number goes out of the EMPTIES */}
               {bodyRow(
-                'Incoming',
-                (r) => (editing ? box('filled', r.size, 'incoming') : r.incoming),
-                (e) => (editing ? box('empties', e.size, 'incoming') : (e.incoming ?? ''))
-              )}
-
-              {/* Refill: typed in FILLED; the same number goes out of the EMPTIES */}
-              {bodyRow(
-                'Refill',
-                (r) => (editing ? box('filled', r.size, 'refill') : (r.refill ?? 0)),
+                'Incoming/Refill',
+                (r) => {
+                  const oldRefill = Number(r.refill) || 0 // from the days when Refill had its own row
+                  if (!editing) return (Number(r.incoming) || 0) + oldRefill
+                  return (
+                    <div>
+                      {box('filled', r.size, 'incoming')}
+                      {oldRefill > 0 && (
+                        <div className="text-[11px] text-gray-400">+{oldRefill} refill</div>
+                      )}
+                    </div>
+                  )
+                },
                 (e) => {
-                  const value = editing ? liveEmpties(e).refill : Number(e.refill) || 0
-                  return value > 0 ? <span title="Empties sent to be refilled">−{value}</span> : 0
+                  const taken = editing ? liveEmpties(e).restock : Number(e.refill) || 0
+                  return (
+                    <div>
+                      {editing ? box('empties', e.size, 'incoming') : (e.incoming ?? '')}
+                      {taken > 0 && (
+                        <div className="text-[11px] text-brand-red" title="Empties taken by the restock">
+                          −{taken}
+                        </div>
+                      )}
+                    </div>
+                  )
                 }
               )}
 
               {bodyRow(
                 'Total',
                 (r) => (editing ? liveFilled(r).total : r.total),
-                (e) => (editing ? box('empties', e.size, 'total') : (e.total ?? '')),
+                (e) => (editing ? liveEmpties(e).total : e.total),
                 { bold: true }
               )}
 
@@ -575,7 +710,12 @@ export default function InventoryTable({
                   ) : (
                     r.sold
                   ),
-                () => <span className="text-gray-400">-</span>
+                // EMPTIES: the empties given back (FILLED Sales - the ones sold as Utang)
+                (e) => (
+                  <span title="Empties given back by the customers">
+                    {editing ? liveEmpties(e).returned : e.sales}
+                  </span>
+                )
               )}
 
               {bodyRow(
@@ -600,21 +740,34 @@ export default function InventoryTable({
                 (e) => (editing ? liveEmpties(e).ending : e.ending)
               )}
 
-              {/* for now the Actual Count is the same as the Ending Inventory */}
+              {/* FILLED: Actual Count = Ending + Variance. EMPTIES: Actual Count = Ending. */}
               {bodyRow(
                 'Actual Count',
-                (r) => (editing ? liveFilled(r).ending : r.ending),
-                (e) => (editing ? liveEmpties(e).ending : e.ending)
+                (r) => (editing ? liveFilled(r).actual : (r.actual ?? r.ending)),
+                (e) => (editing ? liveEmpties(e).actual : (e.actual ?? e.ending)),
+                { bold: true }
               )}
 
+              {/* FILLED: typed (leaks, swaps between branches). EMPTIES: the cylinders sold as Utang. */}
               {bodyRow(
                 'Variance',
-                () => 0,
+                (r) => {
+                  if (editing) return box('filled', r.size, 'variance')
+                  const value = Number(r.variance) || 0
+                  if (value === 0) return 0
+                  return (
+                    <span className={`font-semibold ${value < 0 ? 'text-brand-red' : 'text-brand-pine'}`}>
+                      {value > 0 ? `+${value}` : value}
+                    </span>
+                  )
+                },
                 (e) =>
                   e.variance === 0 ? (
                     0
                   ) : (
-                    <span className="font-semibold text-brand-red">{e.variance}</span>
+                    <span className="font-semibold text-brand-red" title="Sold as Utang (the customer kept the tank)">
+                      {e.variance}
+                    </span>
                   )
               )}
             </tbody>
@@ -623,12 +776,12 @@ export default function InventoryTable({
       )}
 
       <p className="mt-4 mb-0 max-w-200 text-[14px] text-gray-600">
-        FILLED: Total = Beginning + Incoming + Refill, and Ending Inventory = Total − Sales (orange or
-        red when the stock is low). EMPTIES: Ending Inventory = Beginning + the FILLED Sales − the
-        Refill (those empties were exchanged for filled ones); the
-        Incoming/Refill and Total are only what you type and are not calculated. For now the Actual
-        Count is the same as the Ending Inventory, so the Variance is 0. Tomorrow&apos;s Beginning is
-        today&apos;s Ending Inventory.
+        FILLED: Total = Beginning + Incoming/Refill, Ending Inventory = Total − Sales (orange or red
+        when the stock is low), and Actual Count = Ending + Variance (the Variance is typed: leaks,
+        swaps between branches). EMPTIES: Total = Beginning + Incoming − the restock (shown in red),
+        Sales = the empties given back (FILLED Sales − the ones sold as Utang), Ending = Total +
+        Sales, and the Variance is the cylinders sold as Utang (also in REMARKS, Borrowed).
+        Tomorrow&apos;s Beginning is today&apos;s Actual Count.
       </p>
     </div>
   )

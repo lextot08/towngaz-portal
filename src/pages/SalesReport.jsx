@@ -4,7 +4,7 @@ import { confirmDialog } from '../components/Confirm'
 import { branchName } from '../lib/branches'
 import { todayString, localDateString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
-import { UTANG_LABELS } from '../lib/utang'
+import { REMARKS, remarksOf } from '../lib/utang'
 import { expenseOf, expensesOfOrders } from '../lib/expenses'
 import DateButton from '../components/DateButton'
 
@@ -221,10 +221,17 @@ export default function SalesReport({
   const pendingOrders = orders.filter((o) => o.status === 'pending')
   const acceptedOrders = orders.filter((o) => o.status === 'accepted')
 
-  // Daily Sales Report: orders waiting for acceptance (any date) + accepted orders of the chosen day
+  // Daily Sales Report: website orders not delivered yet (any date, on top) + the orders of the
+  // chosen day. (Orders still "pending" are from before website orders were accepted at once.)
   const shownDate = reportDate || todayString()
   const dayOrders = acceptedOrders.filter((o) => localDateString(o.accepted_at) === shownDate)
-  const reportRows = [...pendingOrders, ...dayOrders]
+  const toDeliver = acceptedOrders.filter(
+    (o) =>
+      o.customer_id &&
+      o.delivery_status === 'out_for_delivery' &&
+      localDateString(o.accepted_at) !== shownDate
+  )
+  const reportRows = [...pendingOrders, ...toDeliver, ...dayOrders]
   const displayRows = toDisplayRows(reportRows)
   // total sales of the day, after the discounts
   const dayTotal = grossOf(dayOrders) - discountOf(dayOrders)
@@ -247,13 +254,17 @@ export default function SalesReport({
   const nDiscount = newRow && newRow.discount !== '' ? Number(newRow.discount) : 0
   const nDiscountOk = Number.isFinite(nDiscount) && nDiscount > 0 && nDiscount < nAmount
 
-  // ---- New orders (from the customer website): red outline and (!) until the row is clicked.
-  // Clicking any cell accepts the order, and only then is it taken from the stock. ----
+  // ---- Website orders are accepted at once and go out for delivery: red outline and (!) until
+  // the Remark "Delivered" is set. (An old order still waiting is accepted by clicking its row.) ----
   const isNewOrder = (g) =>
-    g.orders.some((x) => x.status === 'pending') && !acceptingKeys.includes(g.key)
+    g.orders.some(
+      (x) => x.status === 'pending' || (x.customer_id && x.delivery_status === 'out_for_delivery')
+    ) && !acceptingKeys.includes(g.key)
 
   const acceptRow = async (g) => {
-    if (!canEdit || !isNewOrder(g)) return
+    if (!canEdit || !g.orders.some((x) => x.status === 'pending') || acceptingKeys.includes(g.key)) {
+      return
+    }
     setAcceptingKeys((keys) => [...keys, g.key]) // hide the outline right away
     setMessage('')
     let failed = null
@@ -368,7 +379,11 @@ export default function SalesReport({
         : field === 'remarks'
           ? o.remarks || ''
           : field === 'utang'
-            ? o.utang_status || ''
+            ? {
+                utang: o.utang_status || null,
+                delivered: o.delivery_status === 'delivered',
+                gcash: Boolean(o.paid_gcash),
+              }
             : field.startsWith('size:')
               ? String(qtyOf(g, field.slice(5)) || '')
               : discount > 0
@@ -481,18 +496,29 @@ export default function SalesReport({
 
   const isEditing = (g, field) => cell && cell.key === g.key && cell.field === field
 
-  // Remark: Utang (goes to Tank Count > Borrowed) or Bayad Utang, saved as soon as it is chosen
-  const saveUtang = async (g, value) => {
-    const old = g.orders[0].utang_status || ''
-    if (value === old) {
-      setCell(null)
-      return
-    }
-    const ok = await callFunction('set_order_utang', {
+  // Remark: Utang or Bayad Utang (one of them, or none), Delivered, Thru Gcash.
+  // Each click turns one on or off and is saved at once; the cell stays open for more.
+  const toggleRemark = async (g, key) => {
+    if (savingCell.current) return
+    const now = cell.value
+    const next = { ...now }
+    if (key === 'utang' || key === 'bayad_utang') next.utang = now.utang === key ? null : key
+    else next[key] = !now[key]
+    savingCell.current = true
+    setCellValue(next)
+    const ok = await callFunction('set_order_remarks', {
       p_order_ids: g.orders.map((x) => x.id),
-      p_utang: value || null,
+      p_utang: next.utang,
+      p_delivered: next.delivered,
+      p_gcash: next.gcash,
     })
-    if (ok) setCell(null)
+    savingCell.current = false
+    if (!ok) setCellValue(now)
+  }
+
+  // the remark cell closes when the focus leaves it
+  const leaveRemarkCell = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setCell(null)
   }
 
   // Size cells: how many cylinders of a size the row has. Typing a number in an empty size adds
@@ -604,15 +630,14 @@ export default function SalesReport({
       {message && <p className="mt-0">{message}</p>}
 
       <p className="mt-0 text-[14px]">
-        New orders from the website are shown first, with a red outline and (!), whatever the
-        date.
+        Website orders go out for delivery at once and are shown first, with a red outline and (!),
+        until their Remark is set to Delivered.
         {canEdit && (
           <>
             {' '}
-            Click the row to accept it (only then is it taken from the stock).
             Double-click a Customer name (to change the name or the type), a size (to change the
             quantity or add a size to the order; 0 removes it), Amount (for the discount), Expenses,
-            or Remark (Utang or Bayad Utang) cell to edit it. H = Household,
+            or Remark (Utang, Bayad Utang, Delivered, Thru Gcash) cell to edit it. H = Household,
             C = Commercial, RTO = Retail Outlet. Press Enter to save or Esc to cancel.
           </>
         )}
@@ -900,27 +925,44 @@ export default function SalesReport({
                       </span>
                     )}
                     {isEditing(g, 'utang') ? (
-                      <select
-                        autoFocus
-                        className={ROW_INPUT}
-                        value={cell.value}
-                        onChange={(e) => saveUtang(g, e.target.value)}
+                      <div
+                        className="grid gap-1"
+                        onBlur={leaveRemarkCell}
                         onKeyDown={(e) => e.key === 'Escape' && cancelCell()}
-                        onBlur={cancelCell}
+                        onDoubleClick={(e) => e.stopPropagation()}
                       >
-                        <option value="">(none)</option>
-                        {Object.entries(UTANG_LABELS).map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
+                        {REMARKS.map((r, i) => {
+                          const on =
+                            r.key === 'utang' || r.key === 'bayad_utang'
+                              ? cell.value.utang === r.key
+                              : cell.value[r.key]
+                          return (
+                            <button
+                              key={r.key}
+                              type="button"
+                              autoFocus={i === 0}
+                              onClick={() => toggleRemark(g, r.key)}
+                              className={`rounded-full px-2 py-0.5 text-left text-[11px] font-medium ${
+                                on ? r.chip : 'border border-(color:--border) bg-white text-gray-500'
+                              }`}
+                            >
+                              {on ? '✓ ' : ''}
+                              {r.label}
+                            </button>
+                          )
+                        })}
+                      </div>
                     ) : (
-                      o.utang_status && (
-                        <span
-                          className={`font-semibold ${o.utang_status === 'utang' ? 'text-brand-red' : 'text-brand-pine'}`}
-                        >
-                          {UTANG_LABELS[o.utang_status]}
-                        </span>
-                      )
+                      <div className="flex flex-wrap gap-1">
+                        {remarksOf(o).map((key) => {
+                          const r = REMARKS.find((x) => x.key === key)
+                          return (
+                            <span key={key} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${r.chip}`}>
+                              {r.label}
+                            </span>
+                          )
+                        })}
+                      </div>
                     )}
                   </td>
                   {selecting && (
