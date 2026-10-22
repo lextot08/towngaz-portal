@@ -34,8 +34,9 @@ const toRows = (list) => {
   return rows
 }
 
-// Tank Count > Borrowed: the orders with the Remark "Utang" (under Borrowed) or
-// "Bayad Utang" (under Returned) in the Daily Sales Report, with the same quantities.
+// Borrowed: the orders with the Remark "Borrowed" (the customer kept the tank) in the Daily
+// Sales Report, with the same quantities. (How a returned tank is marked is not decided yet,
+// so the Returned columns are empty for now.)
 // Staff pass their own branch (fixed); the admin picks a branch or all branches.
 export default function TankBorrowed({ branch: ownBranch }) {
   const [chosenBranch, setBranch] = useState(OVERALL) // 0 = all branches
@@ -50,9 +51,9 @@ export default function TankBorrowed({ branch: ownBranch }) {
     let ordersQuery = supabase
       .from('orders')
       .select(
-        'id, group_id, branch, item_name, quantity, customer_name, customer_contact, customer_address, utang_status, created_at, accepted_at'
+        'id, group_id, branch, item_name, quantity, customer_name, customer_contact, customer_address, borrowed_tank, created_at, accepted_at'
       )
-      .in('utang_status', ['utang', 'bayad_utang'])
+      .eq('borrowed_tank', true)
       .in('status', ['pending', 'accepted'])
       .order('created_at', { ascending: false })
     if (branch !== OVERALL) ordersQuery = ordersQuery.eq('branch', branch)
@@ -75,12 +76,15 @@ export default function TankBorrowed({ branch: ownBranch }) {
   const sizeCols = Math.max(sizes.length, 1)
   const sizeWidth = 48 / (sizeCols * 2) // the size columns share 48% of the table
 
-  // the quantities of one row: shown under Borrowed (Utang) or under Returned (Bayad Utang)
+  // the quantities of one row: Borrowed = the tanks kept; Returned = empty for now
   const sizeCells = (row, kind) =>
     (sizes.length > 0 ? sizes : ['']).map((s) => {
-      const qty = row.orders
-        .filter((x) => x.utang_status === kind && x.item_name === 'LPG Cylinder ' + s)
-        .reduce((sum, x) => sum + x.quantity, 0)
+      const qty =
+        kind === 'returned'
+          ? 0
+          : row.orders
+              .filter((x) => x.borrowed_tank && x.item_name === 'LPG Cylinder ' + s)
+              .reduce((sum, x) => sum + x.quantity, 0)
       return (
         <td key={`${kind}-${s}`} className="text-center">
           {qty > 0 ? qty : ''}
@@ -162,14 +166,14 @@ export default function TankBorrowed({ branch: ownBranch }) {
                   <td>{o.customer_name}</td>
                   <td>{o.customer_contact || ''}</td>
                   <td>{o.customer_address || ''}</td>
-                  {sizeCells(row, 'bayad_utang')}
-                  {sizeCells(row, 'utang')}
+                  {sizeCells(row, 'returned')}
+                  {sizeCells(row, 'borrowed')}
                 </tr>
               )
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4 + sizeCols * 2}>No Utang orders yet</td>
+                <td colSpan={4 + sizeCols * 2}>No borrowed tanks yet</td>
               </tr>
             )}
           </tbody>
@@ -177,9 +181,8 @@ export default function TankBorrowed({ branch: ownBranch }) {
       </div>
 
       <p className="mt-3 mb-0 max-w-200 text-[13px] text-gray-600">
-        Orders marked &quot;Utang&quot; in the Daily Sales Report are listed here with the same
-        quantities under Borrowed. When the Remark is changed to &quot;Bayad Utang&quot;, the
-        quantities move to Returned.
+        Orders marked &quot;Borrowed&quot; in the Daily Sales Report (the customer kept the tank)
+        are listed here with the same quantities under Borrowed.
       </p>
     </div>
   )

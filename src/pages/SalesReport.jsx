@@ -382,6 +382,7 @@ export default function SalesReport({
             ? {
                 utang: o.utang_status || null,
                 delivered: o.delivery_status === 'delivered',
+                borrowed: Boolean(o.borrowed_tank),
                 gcash: Boolean(o.paid_gcash),
               }
             : field.startsWith('size:')
@@ -496,7 +497,7 @@ export default function SalesReport({
 
   const isEditing = (g, field) => cell && cell.key === g.key && cell.field === field
 
-  // Remark: Utang or Bayad Utang (one of them, or none), Delivered, Thru Gcash.
+  // Remark: Utang or Bayad Utang (one of them, or none), Borrowed, Delivered, Thru Gcash.
   // Each click turns one on or off and is saved at once; the cell stays open for more.
   const toggleRemark = async (g, key) => {
     if (savingCell.current) return
@@ -509,6 +510,7 @@ export default function SalesReport({
     const ok = await callFunction('set_order_remarks', {
       p_order_ids: g.orders.map((x) => x.id),
       p_utang: next.utang,
+      p_borrowed: next.borrowed,
       p_delivered: next.delivered,
       p_gcash: next.gcash,
     })
@@ -637,7 +639,7 @@ export default function SalesReport({
             {' '}
             Double-click a Customer name (to change the name or the type), a size (to change the
             quantity or add a size to the order; 0 removes it), Amount (for the discount), Expenses,
-            or Remark (Utang, Bayad Utang, Delivered, Thru Gcash) cell to edit it. H = Household,
+            or Remark (Utang, Bayad Utang, Borrowed, Delivered, Thru Gcash) cell to edit it. H = Household,
             C = Commercial, RTO = Retail Outlet. Press Enter to save or Esc to cancel.
           </>
         )}

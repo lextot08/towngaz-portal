@@ -4,9 +4,11 @@ import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { expensesOfOrders } from '../lib/expenses'
+import { IncomeSummary, VolumeTarget, TanksVolume } from './MonthlySheets'
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
+const SOLID = 'rounded-lg bg-brand-pine px-4 py-2 text-white hover:bg-brand-pine-light'
 const CELL = 'border border-(color:--border) px-3 py-2 text-center'
 const LABEL = 'border border-(color:--border) px-3 py-2 text-left'
 const MONEY = 'border border-(color:--border) px-3 py-2 text-right whitespace-nowrap'
@@ -33,6 +35,7 @@ const blank = (key) => (
 export default function MonthlySales({ branch }) {
   const shownBranches = branch ? BRANCHES.filter((b) => b.id === branch) : BRANCHES
   const [month, setMonth] = useState(thisMonth()) // 'YYYY-MM'
+  const [sheet, setSheet] = useState('branches') // the page shown (admin): branches | income | target | volume
   const [sizes, setSizes] = useState([])
   const [orders, setOrders] = useState([])
   const [message, setMessage] = useState('')
@@ -47,7 +50,7 @@ export default function MonthlySales({ branch }) {
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
     let ordersQuery = supabase
       .from('orders')
-      .select('id, group_id, branch, item_name, quantity, total_price, discount, remarks')
+      .select('id, group_id, branch, item_name, quantity, total_price, discount, remarks, utang_status, paid_gcash')
       .eq('status', 'accepted')
       .gte('accepted_at', from.toISOString())
       .lt('accepted_at', to.toISOString())
@@ -72,9 +75,14 @@ export default function MonthlySales({ branch }) {
 
   const sizeCols = Math.max(sizes.length, 1)
 
+  // the orders paid through Gcash (Remark "Thru Gcash"); an Utang (money lent) is not paid yet
+  const isGcash = (o) => o.paid_gcash && o.utang_status !== 'utang'
+  // the orders in the Gross Sale: not Utang (money lent) and not paid through Gcash
+  const isGross = (o) => o.utang_status !== 'utang' && !o.paid_gcash
+
   // Gross Sale, Expenses (the numbers typed in the Daily Sales Report), and Net = Gross - Expenses
   const moneyCells = (list) => {
-    const gross = list.reduce((sum, o) => sum + amountOf(o), 0)
+    const gross = list.filter(isGross).reduce((sum, o) => sum + amountOf(o), 0)
     const expenses = expensesOfOrders(list)
     return [
       <td key="gross" className={MONEY}>{peso(gross)}</td>,
@@ -83,8 +91,15 @@ export default function MonthlySales({ branch }) {
     ]
   }
 
-  // the blank cells after Net: Deposit, Benta Tanke, Add Tanke
-  const blankCells = () => [blank('deposit'), blank('benta'), blank('add')]
+  // after Net: Deposit (blank for now), Gcash, Benta Tanke and Add Tanke (blank for now)
+  const middleCells = (list) => [
+    blank('deposit'),
+    <td key="gcash" className={MONEY}>
+      {peso(list.filter(isGcash).reduce((sum, o) => sum + amountOf(o), 0))}
+    </td>,
+    blank('benta'),
+    blank('add'),
+  ]
 
   // Tanks Count: the cylinders sold in the month, per size
   const tankCells = (list) =>
@@ -126,59 +141,89 @@ export default function MonthlySales({ branch }) {
 
       {message && <p className="mt-0">{message}</p>}
 
-      <div className={PANEL}>
-        <table className="w-full min-w-[1000px]">
-          <thead>
-            <tr>
-              <th rowSpan={2} className={LABEL}>Branch</th>
-              <th rowSpan={2} className={CELL}>Gross Sale</th>
-              <th rowSpan={2} className={CELL}>Expenses</th>
-              <th rowSpan={2} className={CELL}>Net</th>
-              <th rowSpan={2} className={CELL}>Deposit</th>
-              <th rowSpan={2} className={CELL}>Benta Tanke</th>
-              <th rowSpan={2} className={CELL}>Add Tanke</th>
-              <th colSpan={sizeCols} className={CELL}>Tanks Count</th>
-            </tr>
-            <tr>
-              {sizes.length === 0 ? (
-                <th className={CELL}></th>
-              ) : (
-                sizes.map((s) => (
-                  <th key={s} className={CELL}>{s}</th>
-                ))
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {shownBranches.map((b) => (
-              <tr key={b.id}>
-                <td className={LABEL}>{b.name}</td>
-                {moneyCells(orders.filter((o) => o.branch === b.id))}
-                {blankCells()}
-                {tankCells(orders.filter((o) => o.branch === b.id))}
-              </tr>
-            ))}
-          </tbody>
-          {/* one branch only (staff): its row is already the total */}
-          {!branch && (
-            <tfoot>
-              <tr className="font-bold">
-                <td className={LABEL}>Total</td>
-                {moneyCells(orders)}
-                {blankCells()}
-                {tankCells(orders)}
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+      {/* the pages of the report (admin): the branches, then the pages of the paper report */}
+      {!branch && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {[
+            { key: 'branches', label: 'Sales per Branch' },
+            { key: 'volume', label: 'Tanks Volume' },
+            { key: 'target', label: 'Volume vs Target' },
+            { key: 'income', label: 'Income Summary' },
+          ].map((p) => (
+            <button
+              key={p.key}
+              className={sheet === p.key ? SOLID : OUTLINE}
+              onClick={() => setSheet(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <p className="mt-4 mb-0 text-[14px] text-gray-600">
-        Gross Sale is the total amount (after discounts) of the accepted orders from the 1st to the
-        last day of {monthText(month)}. Expenses is the sum of the numbers typed in the Expenses
-        column of the Daily Sales Report (for example &quot;gas 70 others 30&quot; = ₱100). Net =
-        Gross Sale - Expenses. Tanks Count is the number of cylinders sold in the month, per size.
-      </p>
+      {sheet === 'income' && <IncomeSummary />}
+      {sheet === 'target' && <VolumeTarget />}
+      {sheet === 'volume' && <TanksVolume sizes={sizes} />}
+
+      {(branch || sheet === 'branches') && (
+        <>
+        <div className={PANEL}>
+          <table className="w-full min-w-[1000px]">
+            <thead>
+              <tr>
+                <th rowSpan={2} className={LABEL}>Branch</th>
+                <th rowSpan={2} className={CELL}>Gross Sale</th>
+                <th rowSpan={2} className={CELL}>Expenses</th>
+                <th rowSpan={2} className={CELL}>Net</th>
+                <th rowSpan={2} className={CELL}>Deposit</th>
+                <th rowSpan={2} className={CELL}>Gcash</th>
+                <th rowSpan={2} className={CELL}>Benta Tanke</th>
+                <th rowSpan={2} className={CELL}>Add Tanke</th>
+                <th colSpan={sizeCols} className={CELL}>Tanks Count</th>
+              </tr>
+              <tr>
+                {sizes.length === 0 ? (
+                  <th className={CELL}></th>
+                ) : (
+                  sizes.map((s) => (
+                    <th key={s} className={CELL}>{s}</th>
+                  ))
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {shownBranches.map((b) => (
+                <tr key={b.id}>
+                  <td className={LABEL}>{b.name}</td>
+                  {moneyCells(orders.filter((o) => o.branch === b.id))}
+                  {middleCells(orders.filter((o) => o.branch === b.id))}
+                  {tankCells(orders.filter((o) => o.branch === b.id))}
+                </tr>
+              ))}
+            </tbody>
+            {/* one branch only (staff): its row is already the total */}
+            {!branch && (
+              <tfoot>
+                <tr className="font-bold">
+                  <td className={LABEL}>Total</td>
+                  {moneyCells(orders)}
+                  {middleCells(orders)}
+                  {tankCells(orders)}
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        <p className="mt-4 mb-0 text-[14px] text-gray-600">
+          Gross Sale is the total amount (after discounts) of the orders from the 1st to the last day of
+          {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash. Gcash is the
+          total of the orders marked Thru Gcash. Expenses is the sum of the numbers typed in the Expenses
+          column of the Daily Sales Report (for example &quot;gas 70 others 30&quot; = ₱100). Net =
+          Gross Sale - Expenses. Tanks Count is the number of cylinders sold in the month, per size.
+        </p>
+        </>
+      )}
     </div>
   )
 }

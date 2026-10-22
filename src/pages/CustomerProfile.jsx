@@ -44,7 +44,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
     let ordersQuery = supabase
       .from('orders')
       .select(
-        'id, group_id, branch, item_name, quantity, utang_status, status, customer_id, customer_name, customer_address, customer_contact, created_at, accepted_at'
+        'id, group_id, branch, item_name, quantity, borrowed_tank, status, customer_id, customer_name, customer_address, customer_contact, created_at, accepted_at'
       )
       .in('status', ['pending', 'accepted'])
       .order('created_at', { ascending: true })
@@ -144,7 +144,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
       const row = byKey.get(key)
       const size = o.item_name.replace('LPG Cylinder ', '')
       row.qty[size] = (row.qty[size] || 0) + o.quantity
-      if (o.utang_status === 'utang') row.borrowed += o.quantity
+      if (o.borrowed_tank) row.borrowed += o.quantity
       if (o.status === 'pending') row.pending = true
     })
     return rows
