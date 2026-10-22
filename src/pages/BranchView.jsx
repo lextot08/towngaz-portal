@@ -6,7 +6,9 @@ import SalesReport from './SalesReport'
 import OverallSales from './OverallSales'
 
 const OVERALL = 0 // "Overall": the total of all branches (view only)
-const ADMIN_BRANCH = 1 // Caloocan (the main branch): the admin can edit its inventory and report only
+// The admin edits the Stock Inventory of every branch, and the Daily Sales Report of Caloocan
+// (the main branch) only.
+const ADMIN_BRANCH = 1
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
@@ -78,7 +80,7 @@ export default function BranchView({ branch }) {
       <InventoryTable
         branch={branch}
         overall={isOverall}
-        canEdit={!isOverall && branch === ADMIN_BRANCH}
+        canEdit={!isOverall}
         headerLeft={headerLeft}
         date={date}
         onDateChange={setDate}
