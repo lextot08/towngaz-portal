@@ -86,6 +86,23 @@ const TABLE =
 // boxes for inside the table
 const DANGER = 'rounded-lg bg-brand-red px-4 py-2 text-white'
 
+// website orders already clicked (seen) on this computer, so their red outline stays hidden
+const SEEN_KEY = 'towngaz-seen-web-orders'
+const loadSeen = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SEEN_KEY)) || []
+  } catch {
+    return []
+  }
+}
+const saveSeen = (ids) => {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-500))) // keep the last 500
+  } catch {
+    // storage blocked: the outline only hides until the page is reloaded
+  }
+}
+
 // red line around a new order's row (drawn inside the cells, since table rows cannot have a border)
 const NEW_ORDER_OUTLINE =
   '[&>td]:shadow-[inset_0_2px_0_#a80202,inset_0_-2px_0_#a80202] [&>td:first-child]:shadow-[inset_2px_2px_0_#a80202,inset_0_-2px_0_#a80202] [&>td:last-child]:shadow-[inset_-2px_2px_0_#a80202,inset_0_-2px_0_#a80202]'
@@ -153,6 +170,7 @@ export default function SalesReport({
   const [selecting, setSelecting] = useState(false) // choosing orders to delete
   const [selected, setSelected] = useState([]) // the keys of the rows ticked for deletion
   const [acceptingKeys, setAcceptingKeys] = useState([]) // new orders clicked just now (being accepted)
+  const [seenIds, setSeenIds] = useState(loadSeen) // website orders already clicked
   const [message, setMessage] = useState('')
 
   // The sizes are needed for the columns. The stock (with the price) is only needed for editing.
@@ -254,12 +272,24 @@ export default function SalesReport({
   const nDiscount = newRow && newRow.discount !== '' ? Number(newRow.discount) : 0
   const nDiscountOk = Number.isFinite(nDiscount) && nDiscount > 0 && nDiscount < nAmount
 
-  // ---- Website orders are accepted at once and go out for delivery: red outline and (!) until
-  // the Remark "Delivered" is set. (An old order still waiting is accepted by clicking its row.) ----
+  // ---- A new website order has a red outline and (!) so the staff notice it; one click on the
+  // row hides them. (An old order still waiting is accepted by clicking its row.) ----
   const isNewOrder = (g) =>
     g.orders.some(
-      (x) => x.status === 'pending' || (x.customer_id && x.delivery_status === 'out_for_delivery')
+      (x) =>
+        x.status === 'pending' ||
+        (x.customer_id && x.delivery_status === 'out_for_delivery' && !seenIds.includes(x.id))
     ) && !acceptingKeys.includes(g.key)
+
+  const clickRow = (g) => {
+    const ids = g.orders.filter((x) => x.customer_id && !seenIds.includes(x.id)).map((x) => x.id)
+    if (ids.length) {
+      const next = [...seenIds, ...ids]
+      setSeenIds(next)
+      saveSeen(next)
+    }
+    acceptRow(g)
+  }
 
   const acceptRow = async (g) => {
     if (!canEdit || !g.orders.some((x) => x.status === 'pending') || acceptingKeys.includes(g.key)) {
@@ -365,7 +395,32 @@ export default function SalesReport({
       p_time: r.time.toISOString(),
     })
     setSavingNew(false)
-    if (ok) setNewRow(null)
+    if (ok) {
+      setNewRow(null)
+      await addProfileIfNew(r)
+    }
+  }
+
+  // Customer Profile: a new customer (a name, or a contact number, not seen before in this
+  // branch) gets a profile, so their orders show there
+  const addProfileIfNew = async (r) => {
+    const name = r.name.trim()
+    const contact = r.contact.trim()
+    const digits = (text) => String(text || '').replace(/\D/g, '')
+    const { data, error } = await supabase
+      .from('customer_profiles')
+      .select('full_name, contact')
+      .eq('branch', branch)
+    if (error) return // the order is saved; the profile can still be added by hand
+    const known = data.some(
+      (p) =>
+        p.full_name.trim().toLowerCase() === name.toLowerCase() ||
+        (digits(contact) && digits(p.contact) === digits(contact))
+    )
+    if (known) return
+    await supabase
+      .from('customer_profiles')
+      .insert({ branch, full_name: name, address: r.address.trim(), contact })
   }
 
   // ---- Edit like a spreadsheet: double-click a cell, Enter (or clicking away) saves, Esc cancels ----
@@ -632,8 +687,8 @@ export default function SalesReport({
       {message && <p className="mt-0">{message}</p>}
 
       <p className="mt-0 text-[14px]">
-        Website orders go out for delivery at once and are shown first, with a red outline and (!),
-        until their Remark is set to Delivered.
+        Website orders go out for delivery at once and are shown first until their Remark is set to
+        Delivered. A new one has a red outline and (!); click the row to clear it.
         {canEdit && (
           <>
             {' '}
@@ -794,7 +849,7 @@ export default function SalesReport({
               return (
                 <tr
                   key={g.key}
-                  onClick={() => acceptRow(g)}
+                  onClick={() => clickRow(g)}
                   className={`${selected.includes(g.key) && selecting ? 'bg-red-50' : ''} ${
                     isNewOrder(g) ? `${NEW_ORDER_OUTLINE} ${canEdit ? 'cursor-pointer' : ''}` : ''
                   }`}

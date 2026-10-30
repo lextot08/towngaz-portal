@@ -23,7 +23,8 @@ const emptyForm = { fullName: '', address: '', contact: '', branch: '' }
 
 // Customer Profile: the order history of every customer, one table each.
 //   * Website customers: from their own orders (each order is linked to their account).
-//   * Walk-in / phone customers: a profile added here; their orders are found by contact number.
+//   * Walk-in / phone customers: a profile (added here, or made when the staff add their first
+//     order); their orders are the ones of that branch with the same name or contact number.
 // Staff pass their own branch (fixed); the admin sees all branches or picks one.
 export default function CustomerProfile({ branch: ownBranch }) {
   const [chosenBranch, setChosenBranch] = useState(OVERALL)
@@ -94,12 +95,17 @@ export default function CustomerProfile({ branch: ownBranch }) {
     })
   })
 
-  // walk-in / phone customers: a profile, with the orders that have the same contact number
+  // walk-in / phone customers: a profile, with the orders of its branch that have the same name
+  // or the same contact number
+  const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
   profiles.forEach((p) => {
     const contact = digits(p.contact)
-    const list = contact
-      ? orders.filter((o) => !o.customer_id && digits(o.customer_contact) === contact)
-      : []
+    const list = orders.filter(
+      (o) =>
+        !o.customer_id &&
+        o.branch === p.branch &&
+        (sameName(o.customer_name, p.full_name) || (contact && digits(o.customer_contact) === contact))
+    )
     customers.push({
       key: `profile-${p.id}`,
       kind: 'walkin',
@@ -219,7 +225,8 @@ export default function CustomerProfile({ branch: ownBranch }) {
         <form onSubmit={saveProfile} className={`${CARD} mb-4 grid max-w-120 gap-2.5 p-4`}>
           <h3 className="m-0">New customer profile</h3>
           <p className="m-0 text-[13px] text-gray-500">
-            For customers who do not use the website. Their orders are found by the contact number.
+            For customers who do not use the website. Their orders with the same name or contact
+            number show in the history.
           </p>
           <label className={FIELD}>
             Name
@@ -290,8 +297,7 @@ export default function CustomerProfile({ branch: ownBranch }) {
               >
                 <span className="block font-semibold">{c.name}</span>
                 <span className={`block text-[12px] ${c.key === selectedKey ? 'text-white/80' : 'text-gray-500'}`}>
-                  {c.contact || 'no contact'} · {c.kind === 'web' ? 'Website' : 'Walk-in'} ·{' '}
-                  {c.orders.length} order{c.orders.length === 1 ? '' : 's'}
+                  {c.contact || 'no contact'} · {c.orders.length} order{c.orders.length === 1 ? '' : 's'}
                 </span>
               </button>
             ))}
@@ -313,9 +319,6 @@ export default function CustomerProfile({ branch: ownBranch }) {
               <div>
                 <span className="text-gray-500">Branch:</span>{' '}
                 {selected.branches.map((b) => branchName(b)).join(', ') || '-'}
-                <span className="ml-2 rounded-full bg-brand-light px-2 py-0.5 text-[11px]">
-                  {selected.kind === 'web' ? 'Website' : 'Walk-in'}
-                </span>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -351,7 +354,6 @@ export default function CustomerProfile({ branch: ownBranch }) {
                     <tr>
                       <td colSpan={sizeList.length + 2}>
                         No orders yet
-                        {selected.kind === 'walkin' && ' (orders with this contact number show here)'}
                       </td>
                     </tr>
                   )}

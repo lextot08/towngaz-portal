@@ -21,11 +21,6 @@ const longDate = (ymd) => {
   return new Date(y, m - 1, d).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-// The numbers of the tables. The calculation is not decided yet, so every cell is empty for now:
-// fill value(table, branch, size, 'f' | 'e') when it is.
-// eslint-disable-next-line no-unused-vars
-const value = (table, branchId, size, kind) => null
-
 const shown = (n) => (n === null || n === undefined ? '' : n.toLocaleString('en-PH'))
 // adds up numbers; empty when none of them is known yet
 const sum = (list) => {
@@ -36,25 +31,96 @@ const sum = (list) => {
 // Tanks Count: the REVOLVING tanks (filled F and empties E at each branch) on top, the BORROWED
 // tanks below, and the OVERALL TOTAL (revolving + borrowed) per size = the tanks count.
 // Staff pass their own branch (only its row is shown); the admin sees every branch.
+// DRAFT calculation, at the end of the chosen day (nothing in the Stock Inventory is changed):
+//   REVOLVING F = the FILLED Actual Count of the Stock Inventory
+//   REVOLVING E = the EMPTIES Actual Count of the Stock Inventory
+//   BORROWED  E = the empties still owed by customers who bought a filled tank without giving
+//               an empty (Remark "Borrowed" minus the returned ones); its F is always empty
 export default function TankRevolving({ branch: ownBranch }) {
   const [date, setDate] = useState('') // '' means today
   const [sizes, setSizes] = useState([])
+  const [counts, setCounts] = useState({}) // { "table:branch:size:f|e": number }
   const [message, setMessage] = useState('')
 
   const shownDate = date || todayString()
 
-  useEffect(() => {
-    const load = async () => {
-      const { data, error } = await supabase.from('lpg_prices').select('size').order('sort_order')
-      if (error) setMessage(error.message)
-      else setSizes(data.map((p) => p.size))
-    }
-    load()
-  }, [])
-
   const only = (list) => (ownBranch ? list.filter((b) => b.id === ownBranch) : list)
   const revolvingBranches = only(BRANCHES)
   const borrowedBranches = only(BORROWED_BRANCHES)
+
+  useEffect(() => {
+    const load = async () => {
+      setMessage('')
+      // the chosen day, from midnight to midnight (local time), like the Stock Inventory
+      const from = new Date(`${shownDate}T00:00:00`)
+      const to = new Date(from)
+      to.setDate(to.getDate() + 1)
+
+      const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
+      if (sizesResult.error) {
+        setMessage(sizesResult.error.message)
+        return
+      }
+      setSizes([...new Set(sizesResult.data.map((p) => p.size))])
+
+      const ids = revolvingBranches.map((b) => b.id)
+      const [filled, empties] = await Promise.all([
+        Promise.all(
+          ids.map((id) =>
+            supabase.rpc('inventory_report', {
+              p_branch: id,
+              p_from: from.toISOString(),
+              p_to: to.toISOString(),
+            })
+          )
+        ),
+        Promise.all(ids.map((id) => supabase.rpc('empties_report', { p_branch: id, p_day: shownDate }))),
+      ])
+
+      // borrowed tanks given out until the end of the day, and the ones returned by then
+      let ordersQuery = supabase
+        .from('orders')
+        .select('id, branch, item_name, quantity')
+        .eq('borrowed_tank', true)
+        .eq('status', 'accepted')
+        .lt('accepted_at', to.toISOString())
+      let returnsQuery = supabase
+        .from('tank_returns')
+        .select('order_id, quantity')
+        .lt('returned_at', to.toISOString())
+      if (ownBranch) {
+        ordersQuery = ordersQuery.eq('branch', ownBranch)
+        returnsQuery = returnsQuery.eq('branch', ownBranch)
+      }
+      const [ordersResult, returnsResult] = await Promise.all([ordersQuery, returnsQuery])
+
+      const failed = [...filled, ...empties, ordersResult, returnsResult].find((x) => x.error)
+      if (failed) setMessage(failed.error.message)
+
+      const next = {}
+      ids.forEach((id, i) => {
+        for (const r of filled[i].data || []) next[`revolving:${id}:${r.size}:f`] = r.actual
+        for (const r of empties[i].data || []) next[`revolving:${id}:${r.size}:e`] = r.actual
+      })
+      for (const o of ordersResult.data || []) {
+        const back = (returnsResult.data || [])
+          .filter((t) => t.order_id === o.id)
+          .reduce((sum, t) => sum + t.quantity, 0)
+        const out = Math.max(o.quantity - back, 0)
+        const key = `borrowed:${o.branch}:${o.item_name.replace('LPG Cylinder ', '')}:e`
+        next[key] = (next[key] || 0) + out
+      }
+      setCounts(next)
+    }
+    load()
+  }, [shownDate, ownBranch])
+
+  // a number of the tables; the borrowed E of a branch is 0 when no tank is out
+  const value = (table, branchId, size, kind) => {
+    const n = counts[`${table}:${branchId}:${size}:${kind}`]
+    if (n !== undefined && n !== null) return n
+    return table === 'borrowed' && kind === 'e' ? 0 : null
+  }
 
   // totals of a table: per size and kind, and per size (F + E)
   const total = (table, list, size, kind) => sum(list.map((b) => value(table, b.id, size, kind)))
@@ -100,7 +166,12 @@ export default function TankRevolving({ branch: ownBranch }) {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="m-0 text-2xl">Tanks Count</h1>
+          <h1 className="m-0 text-2xl">
+            Tanks Count{' '}
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 align-middle text-[12px] font-semibold text-amber-800">
+              Draft
+            </span>
+          </h1>
           <p className="m-0 text-[14px] text-gray-500">
             {ownBranch ? branchName(ownBranch) : 'All branches'} · {longDate(shownDate)}
           </p>
@@ -173,8 +244,11 @@ export default function TankRevolving({ branch: ownBranch }) {
       </div>
 
       <p className="mt-3 mb-0 max-w-200 text-[13px] text-gray-600">
-        F = filled, E = empties. Overall Total = the revolving tanks (F + E) + the borrowed tanks of
-        each size. The numbers will be filled in once the calculation is set.
+        F = filled, E = empties, at the end of the chosen day. Revolving F and E = the stock of filled and
+        empty tanks at the branch (the Actual Count of the FILLED and EMPTIES in the Stock Inventory).
+        Borrowed E = the empties still owed by customers who bought a filled tank without giving an
+        empty (orders with the Remark Borrowed, minus the ones returned); Borrowed F stays empty. Overall Total = the revolving
+        tanks (F + E) + the borrowed tanks of each size. This is a draft calculation.
       </p>
     </div>
   )

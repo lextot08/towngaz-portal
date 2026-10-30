@@ -1,6 +1,21 @@
 // The other pages of the Monthly Sales Report (admin), laid out like the paper reports.
-// The numbers are not computed yet, so every cell is empty for now.
+// The numbers come from the month's orders, the Stock Inventory (filled tanks received), and the
+// numbers the admin types (double-click: Deposit, Benta Tanke, Add Tanke, Nawa / Unwind,
+// BIVMC Purchases, and the targets T1, T2, T3).
+import { useRef, useState } from 'react'
 import { BRANCHES } from '../lib/branches'
+import { peso } from '../lib/money'
+import { expensesOfOrders } from '../lib/expenses'
+import {
+  entryOf,
+  isGcash,
+  isGross,
+  isUtang,
+  kgOfOrders,
+  kgOfSize,
+  soldOf,
+  sumAmount,
+} from '../lib/monthly'
 
 const CARD = 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'
 const TABLE =
@@ -8,12 +23,86 @@ const TABLE =
 const LABEL = '!text-left font-semibold uppercase'
 const SUBTOTAL = 'bg-[#eef6f3] font-semibold'
 const NOTE = 'block text-[11px] font-normal text-gray-500'
+const NUMBER = 'block text-[15px] font-semibold'
+
+const kgText = (kg) =>
+  kg === 0 ? '-' : `${kg.toLocaleString('en-PH', { maximumFractionDigits: 2 })} kg`
+const tonsText = (kg) => `${(kg / 1000).toLocaleString('en-PH', { maximumFractionDigits: 3 })} tons`
+
+// A number the admin types: double-click to edit, Enter or click away to save, Esc to cancel.
+// An empty box removes the number.
+export function Entry({ value, canEdit, onSave, format = peso }) {
+  const [draft, setDraft] = useState(null)
+  const cancelled = useRef(false)
+
+  const start = () => {
+    if (!canEdit) return
+    cancelled.current = false
+    setDraft(value == null ? '' : String(value))
+  }
+
+  const save = async () => {
+    if (cancelled.current || draft === null) return
+    const text = draft.replace(/[₱,\s]/g, '')
+    setDraft(null)
+    const next = text === '' ? null : Number(text)
+    if (next !== null && (!Number.isFinite(next) || next < 0)) return
+    if (next === (value ?? null)) return
+    await onSave(next)
+  }
+
+  if (draft !== null) {
+    return (
+      <input
+        autoFocus
+        inputMode="decimal"
+        className="w-full min-w-[90px] px-1 text-right"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') {
+            cancelled.current = true
+            setDraft(null)
+          }
+        }}
+      />
+    )
+  }
+  return (
+    <span
+      className={canEdit ? 'cursor-pointer rounded px-1 hover:bg-brand-light' : ''}
+      title={canEdit ? 'Double-click to edit' : undefined}
+      onDoubleClick={start}
+    >
+      {value == null ? <span className="text-gray-400">-</span> : format(value)}
+    </span>
+  )
+}
+
+const sumEntries = (entries, key) =>
+  BRANCHES.reduce((sum, b) => sum + (entryOf(entries, b.id, key) || 0), 0)
 
 // the order of the branches on the paper reports
 const byName = (names) => names.map((n) => BRANCHES.find((b) => b.name === n)).filter(Boolean)
 
 // ---- Page 1: income summary ----
-export function IncomeSummary() {
+export function IncomeSummary({ orders, entries, canEdit, onSave }) {
+  const gross = sumAmount(orders.filter(isGross))
+  const gcash = sumAmount(orders.filter(isGcash))
+  const benta = sumEntries(entries, 'benta')
+  const add = sumEntries(entries, 'add')
+  const utang = sumAmount(orders.filter(isUtang)) // collectibles of the branches
+  const nawa = entryOf(entries, 0, 'nawa')
+  const expenses = expensesOfOrders(orders)
+  const purchases = entryOf(entries, 0, 'bivmc_purchases')
+
+  const collectibles = utang + (nawa || 0)
+  const spent = expenses + (purchases || 0)
+  const actualGross = gross + gcash + benta + add
+  const projectedGross = actualGross + collectibles
+
   return (
     <div className={CARD}>
       <table className={TABLE}>
@@ -30,40 +119,61 @@ export function IncomeSummary() {
         </thead>
         <tbody>
           <tr className="h-24 align-top">
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td>{peso(gross)}</td>
+            <td>{peso(gcash)}</td>
+            <td>{peso(benta)}</td>
+            <td>{peso(add)}</td>
             <td>
-              <span className={NOTE}>Branches</span>
-              <span className={`${NOTE} mt-6`}>Nawa / Unwind</span>
+              <span className={NOTE}>Branches (Utang)</span>
+              {peso(utang)}
+              <span className={`${NOTE} mt-3`}>Nawa / Unwind</span>
+              <Entry
+                value={nawa}
+                canEdit={canEdit}
+                onSave={(v) => onSave(0, 'nawa', v)}
+              />
             </td>
-            <td></td>
-            <td></td>
+            <td>{peso(expenses)}</td>
+            <td>
+              <Entry
+                value={purchases}
+                canEdit={canEdit}
+                onSave={(v) => onSave(0, 'bivmc_purchases', v)}
+              />
+            </td>
           </tr>
           {/* subtotals */}
           <tr className={SUBTOTAL}>
             <td colSpan={2}>
+              <span className={NUMBER}>{peso(gross + gcash)}</span>
               <span className={NOTE}>Gross Sales + Gcash</span>
             </td>
             <td colSpan={2}>
+              <span className={NUMBER}>{peso(benta + add)}</span>
               <span className={NOTE}>Benta Tanke + Add Tanke</span>
             </td>
             <td>
+              <span className={NUMBER}>{peso(collectibles)}</span>
               <span className={NOTE}>Total collectibles</span>
             </td>
             <td colSpan={2}>
+              <span className={NUMBER}>{peso(spent)}</span>
               <span className={NOTE}>Expenses + BIVMC Purchases</span>
             </td>
           </tr>
           <tr className={SUBTOTAL}>
             <td colSpan={4}>
+              <span className={NUMBER}>{peso(actualGross)}</span>
               <span className={`${NOTE} !text-brand-red`}>Actual total gross income</span>
             </td>
-            <td colSpan={3} rowSpan={2}></td>
+            <td colSpan={3} rowSpan={2}>
+              <span className={NUMBER}>{peso(spent)}</span>
+              <span className={NOTE}>Total expenses &amp; purchases</span>
+            </td>
           </tr>
           <tr className={SUBTOTAL}>
-            <td colSpan={5}>
+            <td colSpan={4}>
+              <span className={NUMBER}>{peso(projectedGross)}</span>
               <span className={`${NOTE} !text-blue-700`}>
                 Projected total gross income (actual + collectibles)
               </span>
@@ -75,9 +185,11 @@ export function IncomeSummary() {
               <span className="block text-[14px] font-medium">
                 Total Gross Income − Total Expenses &amp; Purchases
               </span>
-              <span className="mt-3 block text-[18px] font-bold text-brand-pine">&nbsp;</span>
+              <span className="mt-3 block text-[18px] font-bold text-brand-pine">
+                {peso(actualGross - spent)}
+              </span>
               <span className={`${NOTE} !text-blue-700`}>Actual Net Income</span>
-              <span className="mt-3 block text-[16px] font-semibold">&nbsp;</span>
+              <span className="mt-3 block text-[16px] font-semibold">{peso(projectedGross - spent)}</span>
               <span className={NOTE}>Projected Net Income</span>
             </td>
           </tr>
@@ -93,8 +205,29 @@ const RECEIPT_GROUPS = [
   byName(['Cuenca', 'Sta. Teresita', 'Agoncillo']),
 ]
 
-export function VolumeTarget() {
+export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave }) {
   const rowCount = RECEIPT_GROUPS.reduce((n, g) => n + g.length, 0)
+
+  // kg sold by a branch, and kg received by a group of branches (Incoming + Refill)
+  const actualOf = (b) => kgOfOrders(orders.filter((o) => o.branch === b.id), sizes)
+  const receivedOf = (group) =>
+    receipts
+      .filter((r) => group.some((b) => b.id === r.branch))
+      .reduce((sum, r) => sum + r.quantity * kgOfSize(r.size), 0)
+
+  const totalActual = RECEIPT_GROUPS.flat().reduce((sum, b) => sum + actualOf(b), 0)
+  const totalReceived = RECEIPT_GROUPS.reduce((sum, g) => sum + receivedOf(g), 0)
+
+  // the targets (kg), and the highest one reached by the total actual volume
+  const targets = ['t1', 't2', 't3'].map((key, i) => ({
+    key,
+    label: `T${i + 1}`,
+    kg: entryOf(entries, 0, key),
+  }))
+  const set = targets.filter((t) => t.kg != null)
+  const reached = set.filter((t) => totalActual >= t.kg).pop()
+  const next = set.find((t) => totalActual < t.kg)
+
   return (
     <div className={CARD}>
       <table className={TABLE}>
@@ -118,17 +251,45 @@ export function VolumeTarget() {
             group.map((b, i) => (
               <tr key={b.id}>
                 <td className={LABEL}>{b.name}</td>
-                <td></td>
+                <td>{kgText(actualOf(b))}</td>
                 {/* one BIVMC receipt covers a group of branches */}
-                {i === 0 && <td rowSpan={group.length}></td>}
+                {i === 0 && <td rowSpan={group.length}>{kgText(receivedOf(group))}</td>}
                 {gi === 0 && i === 0 && (
                   <>
                     <td rowSpan={rowCount} className="!align-top">
-                      <span className="block py-2 text-left font-semibold">T1 =</span>
-                      <span className="block py-2 text-left font-semibold">T2 =</span>
-                      <span className="block py-2 text-left font-semibold text-violet-700">T3 =</span>
+                      {targets.map((t) => (
+                        <span
+                          key={t.key}
+                          className={`block py-2 text-left font-semibold ${t.key === 't3' ? 'text-violet-700' : ''}`}
+                        >
+                          {t.label} ={' '}
+                          <Entry
+                            value={t.kg}
+                            canEdit={canEdit}
+                            format={kgText}
+                            onSave={(v) => onSave(0, t.key, v)}
+                          />
+                        </span>
+                      ))}
                     </td>
-                    <td rowSpan={rowCount + 1}></td>
+                    <td rowSpan={rowCount + 1}>
+                      {set.length === 0 ? (
+                        <span className="text-gray-400">-</span>
+                      ) : (
+                        <>
+                          <span
+                            className={`block text-[15px] font-bold ${reached ? 'text-brand-pine' : 'text-brand-red'}`}
+                          >
+                            {reached ? `${reached.label} reached` : `Below ${set[0].label}`}
+                          </span>
+                          {next && (
+                            <span className={NOTE}>
+                              {kgText(next.kg - totalActual)} more to reach {next.label}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
                   </>
                 )}
               </tr>
@@ -137,10 +298,12 @@ export function VolumeTarget() {
           <tr className="bg-[#fdf1e3] font-bold">
             <td className={LABEL}>Total</td>
             <td>
-              <span className={NOTE}>kgs / tons</span>
+              {kgText(totalActual)}
+              <span className={NOTE}>{tonsText(totalActual)}</span>
             </td>
             <td>
-              <span className={NOTE}>kgs / tons</span>
+              {kgText(totalReceived)}
+              <span className={NOTE}>{tonsText(totalReceived)}</span>
             </td>
             <td></td>
           </tr>
@@ -151,10 +314,14 @@ export function VolumeTarget() {
 }
 
 // ---- Page 3: tanks count and tank volume per branch ----
-const VOLUME_BRANCHES = byName(['Bayan', 'Gulod', 'Cuenca', 'Sta. Teresita', 'Agoncillo', 'Caloocan', 'Truck'])
+// same order as Sales per Branch
+const VOLUME_BRANCHES = BRANCHES
 
-export function TanksVolume({ sizes }) {
+export function TanksVolume({ orders, sizes }) {
   const sizeList = sizes.length > 0 ? sizes : ['']
+  const countText = (n) => (n > 0 ? n.toLocaleString('en-PH') : '-')
+  const totalKg = kgOfOrders(orders, sizes)
+
   return (
     <div className={CARD}>
       <table className={TABLE}>
@@ -175,24 +342,33 @@ export function TanksVolume({ sizes }) {
           </tr>
         </thead>
         <tbody>
-          {VOLUME_BRANCHES.map((b) => (
-            <tr key={b.id}>
-              <td className={LABEL}>{b.name}</td>
-              {sizeList.map((s) => (
-                <td key={`c-${s}`}></td>
-              ))}
-              {sizeList.map((s) => (
-                <td key={`v-${s}`} className="bg-[#f4f8f4]"></td>
-              ))}
-              <td></td>
-            </tr>
-          ))}
+          {VOLUME_BRANCHES.map((b) => {
+            const list = orders.filter((o) => o.branch === b.id)
+            return (
+              <tr key={b.id}>
+                <td className={LABEL}>{b.name}</td>
+                {sizeList.map((s) => (
+                  <td key={`c-${s}`}>{countText(soldOf(list, s))}</td>
+                ))}
+                {sizeList.map((s) => (
+                  <td key={`v-${s}`} className="bg-[#f4f8f4]">
+                    {kgText(soldOf(list, s) * kgOfSize(s))}
+                  </td>
+                ))}
+                <td className="font-semibold">{kgText(kgOfOrders(list, sizes))}</td>
+              </tr>
+            )
+          })}
           <tr className="bg-[#fdf1e3]">
             <td colSpan={1 + sizeList.length * 2} className="!text-right text-[16px] font-bold text-brand-pine">
               TOTAL VOLUME
             </td>
             <td>
-              <span className={NOTE}>kgs / metric tons / US short tons</span>
+              <span className="block text-[15px] font-bold">{kgText(totalKg)}</span>
+              <span className={NOTE}>
+                {(totalKg / 1000).toLocaleString('en-PH', { maximumFractionDigits: 3 })} metric tons ·{' '}
+                {(totalKg / 907.18474).toLocaleString('en-PH', { maximumFractionDigits: 3 })} US short tons
+              </span>
             </td>
           </tr>
         </tbody>
