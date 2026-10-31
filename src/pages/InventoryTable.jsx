@@ -57,9 +57,10 @@ const encodeRemarks = ({ lines, totals = {}, old }) => {
 
 const OUTLINE =
   'rounded-lg border border-(color:--border) bg-white px-4 py-2 text-brand-pine hover:bg-brand-light'
-const CELL = 'border border-(color:--border) px-3 py-2 text-center'
-const LABEL = 'border border-(color:--border) px-3 py-2 text-left uppercase'
-const NUMBER_INPUT = 'box-border w-20 text-center'
+const CELL = 'border border-(color:--border) px-1.5 py-1 text-center text-[13px] whitespace-nowrap'
+const BODY_CELL = 'border border-(color:--border) px-1.5 py-0.5 text-center text-[13px] leading-tight'
+const BODY_LABEL = 'border border-(color:--border) px-3 py-0.5 text-left text-[13px] uppercase'
+const NUMBER_INPUT = 'box-border h-6 w-full max-w-20 min-w-0 rounded-md px-1 py-0 text-center text-[13px]'
 
 // "2.7kg" -> "2.7 KG"
 const sizeLabel = (size) => size.replace(/kg$/i, ' KG').toUpperCase()
@@ -550,44 +551,47 @@ export default function InventoryTable({
 
   // one row of the table: a label, then the FILLED cells, then the EMPTIES cells
   const bodyRow = (label, filled, empties, options = {}) => (
-    <tr key={label}>
-      <th scope="row" className={`${LABEL} ${options.bold ? 'font-bold' : 'font-medium'}`}>
+    <tr key={label} className={options.height ?? 'h-8'}>
+      <th scope="row" className={`${BODY_LABEL} ${options.bold ? 'font-bold' : 'font-medium'}`}>
         {label}
       </th>
       {rows.map((r) => (
-        <td key={r.size} className={CELL}>{filled(r)}</td>
+        <td key={r.size} className={BODY_CELL}>{filled(r)}</td>
       ))}
       {SHOW_EMPTIES &&
         rows.map((r) => {
           const e = emptyBySize[r.size]
           return (
-            <td key={`empty-${r.size}`} className={`${CELL} ${e ? '' : 'text-gray-400'}`}>
+            <td key={`empty-${r.size}`} className={`${BODY_CELL} ${e ? '' : 'text-gray-400'}`}>
               {e ? empties(e) : '-'}
             </td>
           )
         })}
       {options.remarks && (
-        // h-px + min-h-full: the remark lines stretch over the whole height of the table
-        <td rowSpan={7} className="h-px border border-(color:--border) p-0 text-left align-top">
+        // absolute: the remark lines fill the height of the table and never make it taller
+        <td rowSpan={7} className="relative border border-(color:--border) p-0 text-left align-top">
           {/* the remark lines: label, total (filled in later), note.
-              A grid with equal rows: every line is as tall as the tallest one, and together
-              they fill at least the whole column (a long note makes all lines taller). */}
-          <div className="box-border grid min-h-full auto-rows-fr grid-cols-[36%_14%_50%] text-[13px]">
+              Equal rows of a fixed height: a long note scrolls inside its own cell. */}
+          <div
+            className={`absolute inset-0 grid grid-cols-[36%_14%_50%] text-[13px] ${
+              shownRemarks.old ? 'grid-rows-[repeat(7,minmax(0,1fr))]' : 'grid-rows-[repeat(6,minmax(0,1fr))]'
+            }`}
+          >
             {REMARK_LINES.map((line, i) => {
               // the last line has no line under it (the table's own border is there)
               const under = i < REMARK_LINES.length - 1 || shownRemarks.old ? 'border-b' : ''
               return (
               <Fragment key={line.key}>
-                <div className={`flex items-center ${under} border-(color:--border) px-3 py-1.5 font-medium uppercase`}>
+                <div className={`flex items-center ${under} border-(color:--border) px-3 py-0.5 font-medium uppercase`}>
                   {i + 1}. {line.label}
                 </div>
-                <div className={`flex items-center justify-center ${under} border-l border-(color:--border) px-2 py-1.5 font-semibold`}>
+                <div className={`flex items-center justify-center ${under} border-l border-(color:--border) px-2 py-0.5 font-semibold`}>
                   {/* total: Borrowed = the tanks customers kept (from the orders); the others are typed */}
                   {line.key === 'borrowed' ? (
                     borrowedTotal > 0 ? borrowedTotal : ''
                   ) : editing ? (
                     <input
-                      className="box-border w-full min-w-0 p-1 text-center text-[13px]"
+                      className="box-border h-6 w-full min-w-0 rounded-md p-0.5 text-center text-[13px]"
                       inputMode="numeric"
                       maxLength={6}
                       placeholder="0"
@@ -604,10 +608,11 @@ export default function InventoryTable({
                     shownRemarks.totals[line.key] || ''
                   )}
                 </div>
-                <div className={`${under} border-l border-(color:--border) px-2 py-1 [overflow-wrap:anywhere]`}>
+                <div className={`${under} min-h-0 border-l border-(color:--border) px-1.5 py-0.5 [overflow-wrap:anywhere]`}>
+                  {/* a long note scrolls inside this cell */}
                   {editing ? (
                     <textarea
-                      className="box-border block h-full min-h-10 w-full min-w-0 resize-none rounded-md border border-(color:--border) p-1 text-[13px]"
+                      className="box-border block h-full w-full min-w-0 resize-none overflow-y-auto rounded-md border border-(color:--border) p-0.5 font-[inherit] text-[13px] leading-tight"
                       placeholder="Note"
                       value={remarksDraft.lines[line.key] ?? ''}
                       onChange={(e) =>
@@ -618,7 +623,9 @@ export default function InventoryTable({
                       }
                     />
                   ) : (
-                    <span className="whitespace-pre-wrap">{shownRemarks.lines[line.key] || ''}</span>
+                    <div className="box-border h-full overflow-y-auto border border-transparent p-0.5 leading-tight whitespace-pre-wrap">
+                      {shownRemarks.lines[line.key] || ''}
+                    </div>
                   )}
                 </div>
               </Fragment>
@@ -630,7 +637,7 @@ export default function InventoryTable({
                 <div className="col-span-2 flex items-center px-3 py-1.5 text-[12px] text-gray-500">
                   Earlier note
                 </div>
-                <div className="border-l border-(color:--border) px-2 py-1.5 whitespace-pre-wrap text-gray-600">
+                <div className="min-h-0 overflow-y-auto border-l border-(color:--border) px-2 py-1.5 whitespace-pre-wrap text-gray-600">
                   {shownRemarks.old}
                 </div>
               </>
@@ -676,33 +683,6 @@ export default function InventoryTable({
 
       {message && <p className="mt-0">{message}</p>}
 
-      {editing && (
-        <p className="mt-0 mb-4 max-w-200 text-[14px]">
-          FILLED: type Beginning, Incoming/Refill (the restock: the same number is taken out of the
-          EMPTIES, so it can never be more than the empties), Swap in (tanks given by another branch:
-          the EMPTIES do not change), Sales (the orders in the Daily Sales
-          Report are already counted, shown as &quot;min&quot;), and Variance: the tanks taken out of the
-          Ending, for example 2 for 2 defective or leaked tanks, 3 when giving 3 to another branch. This
-          changes the real stock. EMPTIES: type the Beginning and, in the Variance (Reject / Sell), the
-          defective empties given by customers and the tanks sold outright (Sell: the sale is in Sales,
-          but no empty will come back); the Borrowed tanks are added by themselves. REMARKS: type the
-          totals of Swap, Reject, Backload, Sell and Buy (Borrowed is counted from the orders); a Buy
-          (cylinders bought from another company) is typed in Incoming/Refill, with a note in Buy.
-        </p>
-      )}
-
-      {/* the REMARKS totals do not match the table: a warning, saving is still allowed */}
-      {rows.length > 0 && mismatches.length > 0 && (
-        <div className="mb-4 max-w-200 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">
-          <strong>Please check the REMARKS totals:</strong>
-          <ul className="mt-1 mb-0 pl-5">
-            {mismatches.map((m) => (
-              <li key={m}>{m}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {rows.length === 0 ? (
         <p>No data</p>
       ) : (
@@ -711,15 +691,15 @@ export default function InventoryTable({
             tableClass ?? 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'
           }
         >
-          <table className="w-full min-w-[1100px]">
+          <table className="w-full min-w-[980px] table-fixed">
             <thead>
               <tr>
-                <th rowSpan={3} className={`${CELL} min-w-40 text-left align-top`}>
+                <th rowSpan={3} className={`${CELL} w-36 text-left align-top`}>
                   DATE:
                   <div className="font-normal">{shownDate}</div>
                 </th>
                 <th colSpan={columns} className={CELL}>STOCK INVENTORY</th>
-                <th rowSpan={3} className={`${CELL} w-[30%] min-w-80`}>REMARKS</th>
+                <th rowSpan={3} className={`${CELL} w-[30%]`}>REMARKS</th>
               </tr>
               <tr>
                 <th colSpan={sizeCount} className={CELL}>FILLED</th>
@@ -755,7 +735,7 @@ export default function InventoryTable({
                       <span className="grid">
                         <span>{(Number(r.incoming) || 0) + oldRefill}</span>
                         {swapIn > 0 && (
-                          <span className="text-[11px] font-semibold text-brand-pine" title="Given by another branch">
+                          <span className="text-[9px] leading-3 font-semibold text-brand-pine" title="Given by another branch">
                             +{swapIn} swap in
                           </span>
                         )}
@@ -763,12 +743,12 @@ export default function InventoryTable({
                     )
                   }
                   return (
-                    <div className="grid justify-items-center gap-1">
+                    <div className="grid justify-items-center">
                       {box('filled', r.size, 'incoming')}
                       {oldRefill > 0 && (
-                        <div className="text-[11px] text-gray-400">+{oldRefill} refill</div>
+                        <div className="text-[9px] leading-3 text-gray-400">+{oldRefill} refill</div>
                       )}
-                      <label className="grid justify-items-center text-[10px] text-gray-500">
+                      <label className="grid w-full justify-items-center text-[9px] leading-3 whitespace-nowrap text-gray-500">
                         Swap in
                         {box('filled', r.size, 'swap_in')}
                       </label>
@@ -790,7 +770,8 @@ export default function InventoryTable({
                       {old > 0 && <span className="text-[11px] text-gray-400">+{old} typed before</span>}
                     </span>
                   )
-                }
+                },
+                { height: 'h-20' }
               )}
 
               {bodyRow(
@@ -806,13 +787,14 @@ export default function InventoryTable({
                   editing ? (
                     <div>
                       {box('filled', r.size, 'sales')}
-                      <div className="text-[11px] text-gray-400">min {r.orders_sold}</div>
+                      <div className="text-[9px] leading-3 text-gray-400">min {r.orders_sold}</div>
                     </div>
                   ) : (
                     r.sold
                   ),
                 // EMPTIES: one empty for each FILLED sale, + borrowed tanks returned
-                (e) => (editing ? liveEmpties(e).sales : (Number(e.sales) || 0) + emptiesSaved(e).borrowed)
+                (e) => (editing ? liveEmpties(e).sales : (Number(e.sales) || 0) + emptiesSaved(e).borrowed),
+                { height: 'h-11' }
               )}
 
               {bodyRow(
@@ -859,13 +841,13 @@ export default function InventoryTable({
                   const { borrowed } = emptiesSaved(e)
                   if (editing) {
                     return (
-                      <div className="grid justify-items-center gap-0.5">
-                        <label className="grid justify-items-center text-[10px] text-gray-500">
+                      <div className="grid justify-items-center">
+                        <label className="grid w-full justify-items-center text-[9px] leading-3 whitespace-nowrap text-gray-500">
                           Reject / Sell
                           {box('empties', e.size, 'reject')}
                         </label>
                         {borrowed > 0 && (
-                          <span className="text-[11px] text-gray-500">+{borrowed} borrowed</span>
+                          <span className="text-[9px] leading-3 whitespace-nowrap text-gray-500">+{borrowed} borrowed</span>
                         )}
                       </div>
                     )
@@ -875,29 +857,33 @@ export default function InventoryTable({
                   return (
                     <span className="grid">
                       <span className="font-semibold text-brand-red">{borrowed + reject}</span>
-                      <span className="text-[11px] text-gray-500">
+                      <span className="text-[9px] leading-3 text-gray-500">
                         {[borrowed > 0 && `${borrowed} borrowed`, reject > 0 && `${reject} reject/sell`]
                           .filter(Boolean)
                           .join(', ')}
                       </span>
                     </span>
                   )
-                }
+                },
+                { height: 'h-16' }
               )}
             </tbody>
           </table>
         </div>
       )}
 
-      <p className="mt-4 mb-0 max-w-200 text-[14px] text-gray-600">
-        FILLED: Total = Beginning + Incoming/Refill + Swap in, Ending Inventory = Total − Sales (orange or red
-        when the stock is low), and the Variance is typed (defective or leaked tanks, tanks given to
-        another branch). EMPTIES: Total = Beginning − the restock (shown in red; no empties come in),
-        Sales = one empty for each FILLED sale + borrowed tanks returned that day, Ending = Total +
-        Sales, and the Variance is the tanks marked Borrowed (also in REMARKS, Borrowed) plus the
-        the Reject / Sell typed by the staff (defective empties, tanks sold outright). In both,
-        Actual Count = Ending − Variance, and tomorrow&apos;s Beginning is today&apos;s Actual Count.
-      </p>
+      {/* the REMARKS totals do not match the table: a warning, saving is still allowed */}
+      {rows.length > 0 && mismatches.length > 0 && (
+        <div className="mt-4 max-w-200 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-[13px] text-amber-900">
+          <strong>Please check the REMARKS totals:</strong>
+          <ul className="mt-1 mb-0 pl-5">
+            {mismatches.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
     </div>
   )
 }

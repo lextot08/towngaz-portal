@@ -99,7 +99,7 @@ export default function TankRevolving({ branch: ownBranch }) {
 
       const next = {}
       ids.forEach((id, i) => {
-        for (const r of filled[i].data || []) next[`revolving:${id}:${r.size}:f`] = r.actual
+        for (const r of filled[i].data || []) next[`revolving:${id}:${r.size}:f`] = r.actual ?? r.ending
         for (const r of empties[i].data || []) next[`revolving:${id}:${r.size}:e`] = r.actual
       })
       for (const o of ordersResult.data || []) {
