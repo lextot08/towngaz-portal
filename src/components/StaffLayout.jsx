@@ -89,7 +89,7 @@ export default function StaffLayout({
           >
             ☰
           </button>
-          <img className="block h-[80%] w-auto" src="/logo.png" alt="Towngaz" />
+          <img className="block h-[80%] w-auto" src="/cjg-logo-bar.png" alt="CJG Joseph and Norie Trading" />
         </div>
       </header>
 

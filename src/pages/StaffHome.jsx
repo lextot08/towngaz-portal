@@ -5,6 +5,7 @@ import { localDateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { DEFAULT_LOW_LEVEL } from '../lib/stockStatus'
 import { REMARKS, remarksOf } from '../lib/utang'
+import { loadTankCounts, tankTotals } from '../lib/tankCount'
 
 const GREEN = '#0b4436'
 const CARD = 'rounded-2xl border border-(color:--border) bg-white shadow-sm'
@@ -74,6 +75,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
   const [stock, setStock] = useState([])
   const [levels, setLevels] = useState({})
   const [message, setMessage] = useState('')
+  const [tankNumbers, setTankNumbers] = useState({ total: null, revolving: null, borrowed: null })
 
   useEffect(() => {
     const load = async () => {
@@ -91,6 +93,15 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
       setPrices(sizesResult.data.map((p) => ({ size: p.size, price: own[p.size] ?? p.price })))
       setLevels(Object.fromEntries(sizesResult.data.map((p) => [p.size, p.low_stock_level])))
       setStock(stockResult.data)
+    }
+    load()
+  }, [branch])
+
+  // Tanks Count of today, this branch only (like the Tanks Count page)
+  useEffect(() => {
+    const load = async () => {
+      const { counts, error } = await loadTankCounts(todayString(), [branch], branch)
+      if (!error) setTankNumbers(tankTotals(counts))
     }
     load()
   }, [branch])
@@ -177,8 +188,6 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
     },
   ]
 
-  // Tanks Count: the numbers come later (blank for now)
-  const tankNumbers = { total: null, revolving: null, borrowed: null }
   const shown = (value) => (value === null || value === undefined ? '—' : value.toLocaleString('en-PH'))
 
   const quick = [

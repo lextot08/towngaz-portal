@@ -84,9 +84,6 @@ export function Entry({ value, canEdit, onSave, format = peso }) {
 const sumEntries = (entries, key) =>
   BRANCHES.reduce((sum, b) => sum + (entryOf(entries, b.id, key) || 0), 0)
 
-// the order of the branches on the paper reports
-const byName = (names) => names.map((n) => BRANCHES.find((b) => b.name === n)).filter(Boolean)
-
 // ---- Page 1: income summary ----
 export function IncomeSummary({ orders, entries, canEdit, onSave }) {
   const gross = sumAmount(orders.filter(isGross))
@@ -200,23 +197,21 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
 }
 
 // ---- Page 2: actual volume against the BIVMC receipts and the target ----
-const RECEIPT_GROUPS = [
-  byName(['Bayan', 'Gulod', 'Caloocan', 'Truck']),
-  byName(['Cuenca', 'Sta. Teresita', 'Agoncillo']),
-]
+// same order as Sales per Branch
+const TARGET_BRANCHES = BRANCHES
 
 export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave }) {
-  const rowCount = RECEIPT_GROUPS.reduce((n, g) => n + g.length, 0)
+  const rowCount = TARGET_BRANCHES.length
 
-  // kg sold by a branch, and kg received by a group of branches (Incoming + Refill)
+  // kg sold by a branch, and kg received by a branch (Incoming + Refill)
   const actualOf = (b) => kgOfOrders(orders.filter((o) => o.branch === b.id), sizes)
-  const receivedOf = (group) =>
+  const receivedOf = (b) =>
     receipts
-      .filter((r) => group.some((b) => b.id === r.branch))
+      .filter((r) => r.branch === b.id)
       .reduce((sum, r) => sum + r.quantity * kgOfSize(r.size), 0)
 
-  const totalActual = RECEIPT_GROUPS.flat().reduce((sum, b) => sum + actualOf(b), 0)
-  const totalReceived = RECEIPT_GROUPS.reduce((sum, g) => sum + receivedOf(g), 0)
+  const totalActual = TARGET_BRANCHES.reduce((sum, b) => sum + actualOf(b), 0)
+  const totalReceived = TARGET_BRANCHES.reduce((sum, b) => sum + receivedOf(b), 0)
 
   // the targets (kg), and the highest one reached by the total actual volume
   const targets = ['t1', 't2', 't3'].map((key, i) => ({
@@ -247,14 +242,12 @@ export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave
           </tr>
         </thead>
         <tbody>
-          {RECEIPT_GROUPS.map((group, gi) =>
-            group.map((b, i) => (
+          {TARGET_BRANCHES.map((b, i) => (
               <tr key={b.id}>
                 <td className={LABEL}>{b.name}</td>
                 <td>{kgText(actualOf(b))}</td>
-                {/* one BIVMC receipt covers a group of branches */}
-                {i === 0 && <td rowSpan={group.length}>{kgText(receivedOf(group))}</td>}
-                {gi === 0 && i === 0 && (
+                <td>{kgText(receivedOf(b))}</td>
+                {i === 0 && (
                   <>
                     <td rowSpan={rowCount} className="!align-top">
                       {targets.map((t) => (
@@ -293,8 +286,7 @@ export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave
                   </>
                 )}
               </tr>
-            ))
-          )}
+            ))}
           <tr className="bg-[#fdf1e3] font-bold">
             <td className={LABEL}>Total</td>
             <td>

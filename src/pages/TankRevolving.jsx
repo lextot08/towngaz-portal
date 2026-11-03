@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
+import { loadTankCounts, BORROWED_BRANCHES } from '../lib/tankCount'
 import DateButton from '../components/DateButton'
 
 const OUTLINE =
@@ -11,9 +12,6 @@ const TABLE =
   'w-full min-w-[760px] border-collapse text-[13px] [&_td]:border [&_td]:border-(color:--border) [&_th]:border [&_th]:border-(color:--border) [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2 [&_th]:py-1.5 [&_td]:text-center [&_th]:text-center'
 const BRANCH_CELL = '!text-left font-semibold uppercase'
 const TOTAL_ROW = 'bg-[#eef6f3] font-bold'
-
-// the Truck has no borrowed tanks (it is not a store)
-const BORROWED_BRANCHES = BRANCHES.filter((b) => b.name !== 'Truck')
 
 // "September 29, 2026"
 const longDate = (ymd) => {
@@ -31,11 +29,7 @@ const sum = (list) => {
 // Tanks Count: the REVOLVING tanks (filled F and empties E at each branch) on top, the BORROWED
 // tanks below, and the OVERALL TOTAL (revolving + borrowed) per size = the tanks count.
 // Staff pass their own branch (only its row is shown); the admin sees every branch.
-// DRAFT calculation, at the end of the chosen day (nothing in the Stock Inventory is changed):
-//   REVOLVING F = the FILLED Actual Count of the Stock Inventory
-//   REVOLVING E = the EMPTIES Actual Count of the Stock Inventory
-//   BORROWED  E = the empties still owed by customers who bought a filled tank without giving
-//               an empty (Remark "Borrowed" minus the returned ones); its F is always empty
+// DRAFT calculation, at the end of the chosen day: see src/lib/tankCount.js
 export default function TankRevolving({ branch: ownBranch }) {
   const [date, setDate] = useState('') // '' means today
   const [sizes, setSizes] = useState([])
@@ -51,11 +45,6 @@ export default function TankRevolving({ branch: ownBranch }) {
   useEffect(() => {
     const load = async () => {
       setMessage('')
-      // the chosen day, from midnight to midnight (local time), like the Stock Inventory
-      const from = new Date(`${shownDate}T00:00:00`)
-      const to = new Date(from)
-      to.setDate(to.getDate() + 1)
-
       const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
       if (sizesResult.error) {
         setMessage(sizesResult.error.message)
@@ -63,53 +52,12 @@ export default function TankRevolving({ branch: ownBranch }) {
       }
       setSizes([...new Set(sizesResult.data.map((p) => p.size))])
 
-      const ids = revolvingBranches.map((b) => b.id)
-      const [filled, empties] = await Promise.all([
-        Promise.all(
-          ids.map((id) =>
-            supabase.rpc('inventory_report', {
-              p_branch: id,
-              p_from: from.toISOString(),
-              p_to: to.toISOString(),
-            })
-          )
-        ),
-        Promise.all(ids.map((id) => supabase.rpc('empties_report', { p_branch: id, p_day: shownDate }))),
-      ])
-
-      // borrowed tanks given out until the end of the day, and the ones returned by then
-      let ordersQuery = supabase
-        .from('orders')
-        .select('id, branch, item_name, quantity')
-        .eq('borrowed_tank', true)
-        .eq('status', 'accepted')
-        .lt('accepted_at', to.toISOString())
-      let returnsQuery = supabase
-        .from('tank_returns')
-        .select('order_id, quantity')
-        .lt('returned_at', to.toISOString())
-      if (ownBranch) {
-        ordersQuery = ordersQuery.eq('branch', ownBranch)
-        returnsQuery = returnsQuery.eq('branch', ownBranch)
-      }
-      const [ordersResult, returnsResult] = await Promise.all([ordersQuery, returnsQuery])
-
-      const failed = [...filled, ...empties, ordersResult, returnsResult].find((x) => x.error)
-      if (failed) setMessage(failed.error.message)
-
-      const next = {}
-      ids.forEach((id, i) => {
-        for (const r of filled[i].data || []) next[`revolving:${id}:${r.size}:f`] = r.actual ?? r.ending
-        for (const r of empties[i].data || []) next[`revolving:${id}:${r.size}:e`] = r.actual
-      })
-      for (const o of ordersResult.data || []) {
-        const back = (returnsResult.data || [])
-          .filter((t) => t.order_id === o.id)
-          .reduce((sum, t) => sum + t.quantity, 0)
-        const out = Math.max(o.quantity - back, 0)
-        const key = `borrowed:${o.branch}:${o.item_name.replace('LPG Cylinder ', '')}:e`
-        next[key] = (next[key] || 0) + out
-      }
+      const { counts: next, error } = await loadTankCounts(
+        shownDate,
+        revolvingBranches.map((b) => b.id),
+        ownBranch
+      )
+      if (error) setMessage(error.message)
       setCounts(next)
     }
     load()

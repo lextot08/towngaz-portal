@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
+import { todayString } from '../lib/dateUtils'
+import { loadTankCounts, tankTotals } from '../lib/tankCount'
 import { peso } from '../lib/money'
 
 const GREEN = '#0b4436'
@@ -59,6 +61,7 @@ export default function AdminHome({
   const [priceBranch, setPriceBranch] = useState(adminBranch)
   const [prices, setPrices] = useState([])
   const [message, setMessage] = useState('')
+  const [tankNumbers, setTankNumbers] = useState({ total: null, revolving: null, borrowed: null })
 
   // the price of each size for the chosen branch (its own price, or the normal price)
   useEffect(() => {
@@ -79,8 +82,15 @@ export default function AdminHome({
     load()
   }, [priceBranch])
 
-  // Tanks Count: the numbers come later (blank for now)
-  const tankNumbers = { total: null, revolving: null, borrowed: null }
+  // Tanks Count of today, all branches (like the Tanks Count page)
+  useEffect(() => {
+    const load = async () => {
+      const { counts, error } = await loadTankCounts(todayString(), BRANCHES.map((b) => b.id))
+      if (!error) setTankNumbers(tankTotals(counts))
+    }
+    load()
+  }, [])
+
   const shown = (value) => (value === null || value === undefined ? '—' : value.toLocaleString('en-PH'))
 
   const tiles = [
