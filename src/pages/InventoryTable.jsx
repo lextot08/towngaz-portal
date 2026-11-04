@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { confirmDialog } from '../components/Confirm'
 import { branchName, BRANCHES } from '../lib/branches'
 import { loadLowLevels, stockStatus, statusColor } from '../lib/stockStatus'
 import { todayString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
+import DownloadButtons from '../components/DownloadButtons'
 
 // Set to false to hide the EMPTIES columns.
 const SHOW_EMPTIES = true
@@ -162,6 +163,7 @@ export default function InventoryTable({
   const [drafts, setDrafts] = useState({ filled: {}, empties: {} })
   const [remarksDraft, setRemarksDraft] = useState({ lines: {}, totals: {}, old: '' }) // the notes and totals while editing
   const [saving, setSaving] = useState(false)
+  const tableRef = useRef(null) // for the download
 
   const shownDate = date || todayString()
 
@@ -549,6 +551,16 @@ export default function InventoryTable({
     />
   )
 
+  // the REMARKS in a downloaded file: one line each, "1. Swap: 2 - Gave 2 to Bayan"
+  const remarksExport = [
+    ...REMARK_LINES.map((line, i) => {
+      const total = line.key === 'borrowed' ? borrowedTotal || '' : shownRemarks.totals[line.key] || ''
+      const note = shownRemarks.lines[line.key] || ''
+      return `${i + 1}. ${line.label}: ${total}${note ? ` - ${note.replace(/\n/g, ' ')}` : ''}`
+    }),
+    ...(shownRemarks.old ? [`Earlier note: ${shownRemarks.old}`] : []),
+  ].join('\n')
+
   // one row of the table: a label, then the FILLED cells, then the EMPTIES cells
   const bodyRow = (label, filled, empties, options = {}) => (
     <tr key={label} className={options.height ?? 'h-8'}>
@@ -569,7 +581,11 @@ export default function InventoryTable({
         })}
       {options.remarks && (
         // absolute: the remark lines fill the height of the table and never make it taller
-        <td rowSpan={7} className="relative border border-(color:--border) p-0 text-left align-top">
+        <td
+          rowSpan={7}
+          className="relative border border-(color:--border) p-0 text-left align-top"
+          data-export={remarksExport}
+        >
           {/* the remark lines: label, total (filled in later), note.
               Equal rows of a fixed height: a long note scrolls inside its own cell. */}
           <div
@@ -676,6 +692,14 @@ export default function InventoryTable({
               <button className={OUTLINE} onClick={() => setDate('')}>Today</button>
               <button className={OUTLINE} onClick={load}>Refresh</button>
               {canEdit && <button className={OUTLINE} onClick={startEdit}>Edit</button>}
+              {rows.length > 0 && (
+                <DownloadButtons
+                  getTable={() => tableRef.current}
+                  title="Stock Inventory"
+                  subtitle={`${overall ? 'Overall' : branchName(branch)} · ${shownDate}`}
+                  filename={`Stock Inventory - ${overall ? 'Overall' : branchName(branch)} - ${shownDate}`}
+                />
+              )}
             </>
           )}
         </div>
@@ -691,7 +715,7 @@ export default function InventoryTable({
             tableClass ?? 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'
           }
         >
-          <table className="w-full min-w-[980px] table-fixed">
+          <table ref={tableRef} className="w-full min-w-[980px] table-fixed">
             <thead>
               <tr>
                 <th rowSpan={3} className={`${CELL} w-36 text-left align-top`}>

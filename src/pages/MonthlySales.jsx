@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { expensesOfOrders } from '../lib/expenses'
 import { IncomeSummary, VolumeTarget, TanksVolume, Entry } from './MonthlySheets'
+import DateButton from '../components/DateButton'
+import DownloadButtons from '../components/DownloadButtons'
 import { entryOf, isGross, isGcash, sumAmount, soldOf } from '../lib/monthly'
 
 const OUTLINE =
@@ -24,6 +26,14 @@ const monthText = (ym) => {
 
 const thisMonth = () => todayString().slice(0, 7)
 
+// the pages of the report (admin)
+const SHEETS = [
+  { key: 'branches', label: 'Sales per Branch' },
+  { key: 'volume', label: 'Tanks Volume' },
+  { key: 'target', label: 'Volume vs Target' },
+  { key: 'income', label: 'Income Summary' },
+]
+
 // Monthly Sales Report: one row per branch for the chosen month (admin: all branches,
 // staff: only their own branch, passed as the branch prop).
 // Gross Sale = the amounts (after discount) of the accepted orders from the 1st to the last day.
@@ -38,6 +48,7 @@ export default function MonthlySales({ branch }) {
   const [entries, setEntries] = useState({}) // the typed numbers, { "branch:key": amount }
   const [receipts, setReceipts] = useState([]) // filled tanks received (admin), [{ branch, size, quantity }]
   const [message, setMessage] = useState('')
+  const tableArea = useRef(null) // the table shown, for the download
 
   const load = async () => {
     setMessage('')
@@ -128,13 +139,14 @@ export default function MonthlySales({ branch }) {
   const middleCells = (list, rowBranch) => {
     const typed = (key) =>
       rowBranch ? (
-        <td key={key} className={MONEY}>
-          <Entry
-            value={entryOf(entries, rowBranch, key)}
-            canEdit={isAdmin}
-            onSave={(v) => saveEntry(rowBranch, key, v)}
-          />
-        </td>
+        <Entry
+          key={key}
+          as="td"
+          className={MONEY}
+          value={entryOf(entries, rowBranch, key)}
+          canEdit={isAdmin}
+          onSave={(v) => saveEntry(rowBranch, key, v)}
+        />
       ) : (
         <td key={key} className={MONEY}>
           {peso(BRANCHES.reduce((sum, b) => sum + (entryOf(entries, b.id, key) || 0), 0))}
@@ -169,18 +181,15 @@ export default function MonthlySales({ branch }) {
           <p className="m-0 text-[14px] text-gray-500">{branch ? branchName(branch) : 'All branches'} · {monthText(month)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className={`${OUTLINE} flex items-center gap-2`}>
-            Month:
-            <input
-              type="month"
-              className="border-0 p-0 text-brand-pine"
-              value={month}
-              max={thisMonth()}
-              onChange={(e) => e.target.value && setMonth(e.target.value)}
-            />
-          </label>
+          <DateButton type="month" value={month} onChange={(v) => v && setMonth(v)} />
           <button className={OUTLINE} onClick={() => setMonth(thisMonth())}>This month</button>
           <button className={OUTLINE} onClick={load}>Refresh</button>
+          <DownloadButtons
+            getTable={() => tableArea.current?.querySelector('table')}
+            title={`Monthly Sales Report - ${SHEETS.find((p) => p.key === (isAdmin ? sheet : 'branches')).label}`}
+            subtitle={`${branch ? branchName(branch) : 'All branches'} · ${monthText(month)}`}
+            filename={`Monthly Sales Report - ${SHEETS.find((p) => p.key === (isAdmin ? sheet : 'branches')).label} - ${branch ? branchName(branch) + ' - ' : ''}${month}`}
+          />
         </div>
       </div>
 
@@ -189,12 +198,7 @@ export default function MonthlySales({ branch }) {
       {/* the pages of the report (admin): the branches, then the pages of the paper report */}
       {isAdmin && (
         <div className="mb-4 flex flex-wrap gap-2">
-          {[
-            { key: 'branches', label: 'Sales per Branch' },
-            { key: 'volume', label: 'Tanks Volume' },
-            { key: 'target', label: 'Volume vs Target' },
-            { key: 'income', label: 'Income Summary' },
-          ].map((p) => (
+          {SHEETS.map((p) => (
             <button
               key={p.key}
               className={sheet === p.key ? SOLID : OUTLINE}
@@ -206,6 +210,7 @@ export default function MonthlySales({ branch }) {
         </div>
       )}
 
+      <div ref={tableArea}>
       {isAdmin && sheet === 'income' && (
         <IncomeSummary orders={orders} entries={entries} canEdit onSave={saveEntry} />
       )}
@@ -293,6 +298,7 @@ export default function MonthlySales({ branch }) {
         </p>
         </>
       )}
+      </div>
     </div>
   )
 }

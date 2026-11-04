@@ -29,9 +29,10 @@ const kgText = (kg) =>
   kg === 0 ? '-' : `${kg.toLocaleString('en-PH', { maximumFractionDigits: 2 })} kg`
 const tonsText = (kg) => `${(kg / 1000).toLocaleString('en-PH', { maximumFractionDigits: 3 })} tons`
 
-// A number the admin types: double-click to edit, Enter or click away to save, Esc to cancel.
-// An empty box removes the number.
-export function Entry({ value, canEdit, onSave, format = peso }) {
+// A number the admin types: double-click (double-tap) anywhere on its cell to edit, Enter or
+// click away to save, Esc to cancel. An empty box removes the number.
+// as = the element of the cell ('td' for a whole table cell), children = text before the number.
+export function Entry({ value, canEdit, onSave, format = peso, as: Tag = 'span', className = 'rounded px-1', children }) {
   const [draft, setDraft] = useState(null)
   const cancelled = useRef(false)
 
@@ -51,33 +52,35 @@ export function Entry({ value, canEdit, onSave, format = peso }) {
     await onSave(next)
   }
 
-  if (draft !== null) {
-    return (
-      <input
-        autoFocus
-        inputMode="decimal"
-        className="w-full min-w-[90px] px-1 text-right"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur()
-          if (e.key === 'Escape') {
-            cancelled.current = true
-            setDraft(null)
-          }
-        }}
-      />
-    )
-  }
   return (
-    <span
-      className={canEdit ? 'cursor-pointer rounded px-1 hover:bg-brand-light' : ''}
+    <Tag
+      className={`${className} ${canEdit && draft === null ? 'cursor-pointer hover:bg-brand-light' : ''}`}
       title={canEdit ? 'Double-click to edit' : undefined}
-      onDoubleClick={start}
+      onDoubleClick={draft === null ? start : undefined}
     >
-      {value == null ? <span className="text-gray-400">-</span> : format(value)}
-    </span>
+      {children}
+      {draft !== null ? (
+        <input
+          autoFocus
+          inputMode="decimal"
+          className="w-full min-w-[90px] px-1 text-right"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            if (e.key === 'Escape') {
+              cancelled.current = true
+              setDraft(null)
+            }
+          }}
+        />
+      ) : value == null ? (
+        <span className="text-gray-400">-</span>
+      ) : (
+        format(value)
+      )}
+    </Tag>
   )
 }
 
@@ -123,21 +126,23 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
             <td>
               <span className={NOTE}>Branches (Utang)</span>
               {peso(utang)}
-              <span className={`${NOTE} mt-3`}>Nawa / Unwind</span>
               <Entry
                 value={nawa}
                 canEdit={canEdit}
+                className="mt-3 block rounded py-1"
                 onSave={(v) => onSave(0, 'nawa', v)}
-              />
+              >
+                <span className={NOTE}>Nawa / Unwind</span>
+              </Entry>
             </td>
             <td>{peso(expenses)}</td>
-            <td>
-              <Entry
-                value={purchases}
-                canEdit={canEdit}
-                onSave={(v) => onSave(0, 'bivmc_purchases', v)}
-              />
-            </td>
+            <Entry
+              as="td"
+              className=""
+              value={purchases}
+              canEdit={canEdit}
+              onSave={(v) => onSave(0, 'bivmc_purchases', v)}
+            />
           </tr>
           {/* subtotals */}
           <tr className={SUBTOTAL}>
@@ -251,18 +256,16 @@ export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave
                   <>
                     <td rowSpan={rowCount} className="!align-top">
                       {targets.map((t) => (
-                        <span
+                        <Entry
                           key={t.key}
-                          className={`block py-2 text-left font-semibold ${t.key === 't3' ? 'text-violet-700' : ''}`}
+                          value={t.kg}
+                          canEdit={canEdit}
+                          format={kgText}
+                          className={`block rounded px-1 py-2 text-left font-semibold ${t.key === 't3' ? 'text-violet-700' : ''}`}
+                          onSave={(v) => onSave(0, t.key, v)}
                         >
                           {t.label} ={' '}
-                          <Entry
-                            value={t.kg}
-                            canEdit={canEdit}
-                            format={kgText}
-                            onSave={(v) => onSave(0, t.key, v)}
-                          />
-                        </span>
+                        </Entry>
                       ))}
                     </td>
                     <td rowSpan={rowCount + 1}>

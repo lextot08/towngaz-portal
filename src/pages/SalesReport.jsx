@@ -7,6 +7,7 @@ import { peso } from '../lib/money'
 import { REMARKS, remarksOf } from '../lib/utang'
 import { expenseOf, expensesOfOrders } from '../lib/expenses'
 import DateButton from '../components/DateButton'
+import DownloadButtons from '../components/DownloadButtons'
 
 // shown after the customer name: Juan (H)
 const TYPE_SHORT = {
@@ -156,6 +157,7 @@ export default function SalesReport({
   tableClass, // lets the admin page give the table a fixed size
 }) {
   const [ownDate, setOwnDate] = useState('')
+  const tableRef = useRef(null) // for the download
   const reportDate = dateProp ?? ownDate // '' means today
   const setReportDate = onDateChange ?? setOwnDate
 
@@ -654,6 +656,14 @@ export default function SalesReport({
           />
           <button className={OUTLINE} onClick={() => setReportDate('')}>Today</button>
           {showRefresh && <button className={OUTLINE} onClick={reload}>Refresh</button>}
+          {!newRow && !selecting && (
+            <DownloadButtons
+              getTable={() => tableRef.current}
+              title="Daily Sales Report"
+              subtitle={`${branchName(branch)} · ${shownDate}`}
+              filename={`Daily Sales Report - ${branchName(branch)} - ${shownDate}`}
+            />
+          )}
           {canEdit &&
             (newRow ? (
               <>
@@ -705,7 +715,7 @@ export default function SalesReport({
           tableClass ?? 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'
         }
       >
-        <table className={TABLE}>
+        <table ref={tableRef} className={TABLE}>
           <colgroup>
             <col style={{ width: `${W.time}%` }} />
             <col style={{ width: `${W.name}%` }} />
@@ -977,6 +987,7 @@ export default function SalesReport({
                       <span
                         className="float-right ml-1 flex size-5 items-center justify-center rounded-full bg-brand-red text-[12px] font-bold text-white"
                         title="New order from the website"
+                        data-export-skip
                       >
                         !
                       </span>
