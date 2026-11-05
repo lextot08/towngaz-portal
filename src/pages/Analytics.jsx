@@ -14,6 +14,7 @@ import {
   LabelList,
 } from 'recharts'
 import { supabase } from '../lib/supabaseClient'
+import { amountOf } from '../lib/monthly'
 import { branchName, BRANCHES } from '../lib/branches'
 import { localDateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
@@ -308,7 +309,7 @@ export default function Analytics() {
     loadInventory()
   }, [branch])
 
-  const revenueOf = (o) => Number(o.total_price) - Number(o.discount || 0)
+  const revenueOf = amountOf
   // kilograms of LPG for one order: quantity x kg per cylinder
   const kgOfOrder = (o) => Number(o.quantity) * kgOf(o.item_name)
 

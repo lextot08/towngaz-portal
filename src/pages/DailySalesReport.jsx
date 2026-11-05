@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { branchName } from '../lib/branches'
 import { dateString, localDateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
-import { expensesOfOrders } from '../lib/expenses'
+import { expensesOfOrders, otherIncomeOfOrders } from '../lib/expenses'
 import { isGcash, isGross, soldOf, sumAmount } from '../lib/monthly'
 import { Entry } from './MonthlySheets'
 import DateButton from '../components/DateButton'
@@ -49,7 +49,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
 
     let ordersQuery = supabase
       .from('orders')
-      .select('id, group_id, branch, item_name, quantity, total_price, discount, remarks, utang_status, paid_gcash, accepted_at')
+      .select('*')
       .eq('status', 'accepted')
       .gte('accepted_at', from.toISOString())
       .lt('accepted_at', to.toISOString())
@@ -131,7 +131,8 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
 
   // the cells of one day, or the totals of several days (dayList: the subtotal and total rows)
   const cells = (list, day, dayList = days) => {
-    const gross = sumAmount(list.filter(isGross))
+    // Gross: the sales without Utang and Gcash, plus the Other Income of the log
+    const gross = sumAmount(list.filter(isGross)) + otherIncomeOfOrders(list)
     const expenses = expensesOfOrders(list)
     const typed = (key) =>
       day ? (
@@ -254,7 +255,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
 
       <p className="mt-4 mb-0 max-w-200 text-[13px] text-gray-600">
         Gross, Expenses, Gcash and the tanks sold come from the Daily Sales Log of each day (Gross
-        leaves out Utang and Thru Gcash). Net = Gross − Expenses.
+        leaves out Utang and Thru Gcash, and adds the Other Income). Net = Gross − Expenses.
         {editable
           ? ' Double-click Benta Tanke, DF (delivery fee), Deposit or Add Tanke to type the amount of that day.'
           : ' Benta Tanke, DF (delivery fee), Deposit and Add Tanke are typed by the staff of each branch.'}{' '}

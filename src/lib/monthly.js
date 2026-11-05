@@ -1,7 +1,10 @@
 // Helpers of the Monthly Sales Report (Sales per Branch and the other pages).
 
+// the price of one order before its discount: quantity x unit price. (The database's
+// total_price already has the discount taken off, so it is not used here.)
+export const fullPriceOf = (o) => Number(o.quantity || 0) * Number(o.unit_price || 0)
 // the amount of one order after its discount, like the Daily Sales Log
-export const amountOf = (o) => Number(o.total_price) - Number(o.discount || 0)
+export const amountOf = (o) => fullPriceOf(o) - Number(o.discount || 0)
 // Utang = money lent: not paid yet, so it is a collectible and not in the Gross Sale
 export const isUtang = (o) => o.utang_status === 'utang'
 // paid through Gcash (Remark "Thru Gcash"), and not an Utang

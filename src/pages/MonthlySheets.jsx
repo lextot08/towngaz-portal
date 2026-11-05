@@ -5,7 +5,7 @@
 import { useRef, useState } from 'react'
 import { BRANCHES } from '../lib/branches'
 import { peso } from '../lib/money'
-import { expensesOfOrders } from '../lib/expenses'
+import { expensesOfOrders, otherIncomeOfOrders } from '../lib/expenses'
 import {
   entryOf,
   isGcash,
@@ -89,7 +89,7 @@ const sumEntries = (entries, key) =>
 
 // ---- Page 1: income summary ----
 export function IncomeSummary({ orders, entries, canEdit, onSave }) {
-  const gross = sumAmount(orders.filter(isGross))
+  const gross = sumAmount(orders.filter(isGross)) + otherIncomeOfOrders(orders)
   const gcash = sumAmount(orders.filter(isGcash))
   const benta = sumEntries(entries, 'benta')
   const add = sumEntries(entries, 'add')

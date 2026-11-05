@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { dateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
-import { expensesOfOrders } from '../lib/expenses'
+import { expensesOfOrders, otherIncomeOfOrders } from '../lib/expenses'
 import { IncomeSummary, VolumeTarget, TanksVolume } from './MonthlySheets'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
@@ -63,7 +63,7 @@ export default function MonthlySales({ branch }) {
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
     let ordersQuery = supabase
       .from('orders')
-      .select('id, group_id, branch, item_name, quantity, total_price, discount, remarks, utang_status, paid_gcash')
+      .select('*')
       .eq('status', 'accepted')
       .gte('accepted_at', from.toISOString())
       .lt('accepted_at', to.toISOString())
@@ -140,7 +140,8 @@ export default function MonthlySales({ branch }) {
 
   // Gross Sale, Expenses (the numbers typed in the Daily Sales Log), and Net = Gross - Expenses
   const moneyCells = (list) => {
-    const gross = sumAmount(list.filter(isGross))
+    // the sales without Utang and Gcash, plus the Other Income of the Daily Sales Log
+    const gross = sumAmount(list.filter(isGross)) + otherIncomeOfOrders(list)
     const expenses = expensesOfOrders(list)
     return [
       <td key="gross" className={MONEY}>{peso(gross)}</td>,
@@ -298,7 +299,8 @@ export default function MonthlySales({ branch }) {
 
         <p className="mt-4 mb-0 text-[14px] text-gray-600">
           Gross Sale is the total amount (after discounts) of the orders from the 1st to the last day of{' '}
-          {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash. Gcash is the
+          {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash, plus the Other Income typed in the
+          Daily Sales Log. Gcash is the
           total of the orders marked Thru Gcash. Expenses is the sum of the numbers typed in the Expenses
           column of the Daily Sales Log (for example &quot;gas 70 others 30&quot; = ₱100). Net =
           Gross Sale - Expenses. Deposit, Benta Tanke and Add Tanke add up the days typed in the

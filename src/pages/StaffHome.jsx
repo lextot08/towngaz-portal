@@ -5,6 +5,7 @@ import { localDateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { DEFAULT_LOW_LEVEL } from '../lib/stockStatus'
 import { REMARKS, remarksOf } from '../lib/utang'
+import { amountOf } from '../lib/monthly'
 import { loadTankCounts, tankTotals } from '../lib/tankCount'
 
 const GREEN = '#0b4436'
@@ -116,7 +117,7 @@ export default function StaffHome({ branch, fullName, orders, onOpen, onUpdatePr
     orders.filter((o) => o.status === 'accepted' && o.accepted_at && localDateString(o.accepted_at) === day)
   const cylinders = (list) => list.reduce((sum, o) => sum + o.quantity, 0)
   const amount = (list) =>
-    list.reduce((sum, o) => sum + Number(o.total_price) - Number(o.discount || 0), 0)
+    list.reduce((sum, o) => sum + amountOf(o), 0)
 
   const todayOrders = acceptedOn(today)
   const yesterdayOrders = acceptedOn(yesterday)

@@ -5,7 +5,8 @@ import { branchName } from '../lib/branches'
 import { todayString, localDateString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { REMARKS, remarksOf } from '../lib/utang'
-import { expenseOf, expensesOfOrders } from '../lib/expenses'
+import { expenseOf, expensesOfOrders, otherIncomeOfOrders } from '../lib/expenses'
+import { fullPriceOf } from '../lib/monthly'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
 
@@ -71,7 +72,8 @@ const toDisplayRows = (list) => {
 const deliveryOf = (o) => (o.delivery_status === 'not_started' ? 'preparing' : o.delivery_status)
 
 // amount before the discount, and the discount, of a row (one order or a multiple order)
-const grossOf = (list) => list.reduce((sum, x) => sum + Number(x.total_price), 0)
+// the price before the discounts (quantity x unit price)
+const grossOf = (list) => list.reduce((sum, x) => sum + fullPriceOf(x), 0)
 const discountOf = (list) => list.reduce((sum, x) => sum + Number(x.discount || 0), 0)
 
 // Tailwind class groups used in several places
@@ -112,9 +114,13 @@ const ROW_INPUT = 'box-border block w-full min-w-0 p-1.5 text-[13px]'
 // Share of the table width for each column, in percent (they add up to 100).
 // The size columns (2.7kg, 11kg, 22kg, 50kg) share 20% between them.
 // WIDTHS_SELECT is used while choosing orders to delete (a small box column at the end).
-// (remarks = the Expenses column, utang = the Remark column)
-const WIDTHS_VIEW = { time: 7, name: 16, contact: 10, address: 12, unit: 8, amount: 10, remarks: 9, utang: 8 }
-const WIDTHS_SELECT = { time: 7, name: 14, contact: 9, address: 11, unit: 8, amount: 9, remarks: 9, utang: 8, select: 5 }
+// (remarks = the Expenses column, utang = the Remark column, other = the Other Income column)
+const WIDTHS_VIEW = { time: 7, name: 14, contact: 9, address: 11, unit: 7, amount: 10, remarks: 8, utang: 8, other: 6 }
+const WIDTHS_SELECT = { time: 6, name: 13, contact: 8, address: 10, unit: 7, amount: 9, remarks: 8, utang: 8, other: 6, select: 5 }
+
+// Other Income: a temporary column after Remark (extra money from another source, typed like the
+// Expenses and added to the Gross of the reports). Set to false to hide it again.
+const SHOW_OTHER_INCOME = true
 const SIZES_SHARE = 20
 
 // A text box that gets taller when the text is long, so the table keeps its size
@@ -233,7 +239,7 @@ export default function SalesReport({
 
   const sizeList = extra.sizes
   const sizeCols = Math.max(sizeList.length, 1)
-  const totalCols = 4 + sizeCols + 4 + (selecting ? 1 : 0)
+  const totalCols = 4 + sizeCols + 4 + (SHOW_OTHER_INCOME ? 1 : 0) + (selecting ? 1 : 0)
   const W = selecting ? WIDTHS_SELECT : WIDTHS_VIEW
   // a cell that opens for editing on double-click
   const EDITABLE = canEdit ? 'cursor-cell hover:bg-black/[0.03]' : ''
@@ -257,6 +263,8 @@ export default function SalesReport({
   const dayTotal = grossOf(dayOrders) - discountOf(dayOrders)
   // total expenses of the day (the numbers typed in the Expenses column)
   const dayExpenses = expensesOfOrders(dayOrders)
+  // total Other Income of the day
+  const dayOtherIncome = otherIncomeOfOrders(dayOrders)
   // the ticked rows that are on the page now
   const selectedRows = displayRows.filter((g) => selected.includes(g.key))
 
@@ -437,6 +445,8 @@ export default function SalesReport({
         ? { name: o.customer_name || '', type: o.customer_type || 'household' }
         : field === 'remarks'
           ? o.remarks || ''
+          : field === 'other'
+          ? o.other_income || ''
           : field === 'utang'
             ? {
                 utang: o.utang_status || null,
@@ -465,6 +475,24 @@ export default function SalesReport({
   const saveCell = async (g, value = cell?.value) => {
     if (!cell || cancelledCell.current || savingCell.current) return
     const list = g.orders
+
+    // Other Income has its own function
+    if (cell.field === 'other') {
+      const text = value.trim()
+      if (text === (list[0].other_income || '')) {
+        setCell(null)
+        return
+      }
+      savingCell.current = true
+      const ok = await callFunction('set_order_other_income', {
+        p_order_ids: list.map((x) => x.id),
+        p_text: text,
+      })
+      savingCell.current = false
+      if (ok) setCell(null)
+      return
+    }
+
     const o = list[0]
     const amount = grossOf(list)
     const oldDiscount = discountOf(list)
@@ -706,7 +734,7 @@ export default function SalesReport({
             {' '}
             Double-click a Customer name (to change the name or the type), a size (to change the
             quantity or add a size to the order; 0 removes it), Amount (for the discount), Expenses,
-            or Remark (Utang, Bayad Utang, Borrowed, Delivered, Thru Gcash) cell to edit it. H = Household,
+            Remark (Utang, Bayad Utang, Borrowed, Delivered, Thru Gcash){SHOW_OTHER_INCOME ? ', or Other Income (extra money, added to the Gross)' : ''} cell to edit it. H = Household,
             C = Commercial, RTO = Retail Outlet. Press Enter to save or Esc to cancel.
           </>
         )}
@@ -730,6 +758,7 @@ export default function SalesReport({
             <col style={{ width: `${W.amount}%` }} />
             <col style={{ width: `${W.remarks}%` }} />
             <col style={{ width: `${W.utang}%` }} />
+            {SHOW_OTHER_INCOME && <col style={{ width: `${W.other}%` }} />}
             {selecting && <col style={{ width: `${W.select}%` }} />}
           </colgroup>
           <thead>
@@ -743,6 +772,7 @@ export default function SalesReport({
               <th rowSpan={2}>Amount</th>
               <th rowSpan={2}>Expenses</th>
               <th rowSpan={2}>Remark</th>
+              {SHOW_OTHER_INCOME && <th rowSpan={2}>Other Income</th>}
               {selecting && <th rowSpan={2} className="text-center">Delete</th>}
             </tr>
             <tr>
@@ -847,6 +877,7 @@ export default function SalesReport({
                 <td className="text-[12px] text-gray-500">
                   Double-click after saving
                 </td>
+                {SHOW_OTHER_INCOME && <td></td>}
               </tr>
             )}
 
@@ -1035,6 +1066,28 @@ export default function SalesReport({
                       </div>
                     )}
                   </td>
+                  {SHOW_OTHER_INCOME && (
+                    <td className={EDITABLE} onDoubleClick={() => startCell(g, 'other')}>
+                      {isEditing(g, 'other') ? (
+                        <GrowBox
+                          autoFocus
+                          onFocus={cursorToEnd}
+                          placeholder="Other income"
+                          value={cell.value}
+                          onChange={(e) => setCellValue(e.target.value)}
+                          onKeyDown={cellKeys}
+                          onBlur={() => saveCell(g)}
+                        />
+                      ) : (
+                        <>
+                          {o.other_income || ''}
+                          {expenseOf(o.other_income) > 0 && (
+                            <div className="text-[12px] text-gray-500">= {peso(expenseOf(o.other_income))}</div>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  )}
                   {selecting && (
                     <td className="text-center align-middle!">
                       <input
@@ -1060,7 +1113,9 @@ export default function SalesReport({
               <td>
                 {dayExpenses > 0 && <strong>{peso(dayExpenses)}</strong>}
               </td>
-              <td colSpan={selecting ? 2 : 1}></td>
+              <td></td>
+              {SHOW_OTHER_INCOME && <td>{dayOtherIncome > 0 && <strong>{peso(dayOtherIncome)}</strong>}</td>}
+              {selecting && <td></td>}
             </tr>
           </tfoot>
         </table>
