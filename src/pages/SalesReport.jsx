@@ -318,9 +318,11 @@ export default function SalesReport({
     setMessage('')
     setCell(null)
     stopDelete()
-    setReportDate('') // a new order is always for today
+    // the order is for the day shown: now, or this time of day on a past day (for testing)
+    const now = new Date()
+    const time = shownDate === todayString() ? now : new Date(`${shownDate}T${now.toTimeString().slice(0, 8)}`)
     setNewRow({
-      time: new Date(), // filled in automatically
+      time, // filled in automatically
       name: '',
       source: 'walkin',
       address: '',

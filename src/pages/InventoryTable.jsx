@@ -311,17 +311,20 @@ export default function InventoryTable({
   const emptyBySize = Object.fromEntries(emptyRows.map((e) => [e.size, e]))
 
   const startEdit = () => {
+    // a 0 starts as an empty box (the gray 0 shows), so typing 1 gives 1 and not 10;
+    // an empty box keeps the saved number
+    const boxText = (n) => (Number(n) ? String(n) : '')
     setDrafts({
       filled: Object.fromEntries(
         rows.map((r) => [
           r.size,
           {
-            beginning: String(r.beginning),
-            incoming: String(r.incoming),
-            refill: String(r.refill ?? 0),
-            swap_in: String(r.swap_in ?? 0),
-            sales: String(r.sold),
-            variance: String(filledSaved(r).variance),
+            beginning: boxText(r.beginning),
+            incoming: boxText(r.incoming),
+            refill: boxText(r.refill),
+            swap_in: boxText(r.swap_in),
+            sales: boxText(r.sold),
+            variance: boxText(filledSaved(r).variance),
           },
         ])
       ),
@@ -329,8 +332,8 @@ export default function InventoryTable({
         emptyRows.map((e) => [
           e.size,
           {
-            beginning: String(e.beginning),
-            reject: String(Number(e.reject) || 0),
+            beginning: boxText(e.beginning),
+            reject: boxText(e.reject),
           },
         ])
       ),
@@ -543,7 +546,8 @@ export default function InventoryTable({
     <input
       className={NUMBER_INPUT}
       inputMode="numeric"
-      placeholder={field === 'variance' ? '0' : undefined}
+      placeholder="0"
+      onFocus={(e) => e.target.select()} // typing replaces the number
       title={field === 'variance' ? 'Taken out of the Ending, for example 2 defective tanks' : undefined}
       maxLength={6}
       value={drafts[group]?.[size]?.[field] ?? ''}
