@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, signupClient } from '../lib/supabaseClient'
+import usePopupMessage from '../lib/usePopupMessage'
 import { confirmDialog } from '../components/Confirm'
 import { branchName, BRANCHES } from '../lib/branches'
 import {
@@ -32,6 +33,7 @@ export default function ManageAccounts({ mode, branch }) {
   const [editing, setEditing] = useState(null) // null | 'new' | account id
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
+  usePopupMessage(message) // a problem also pops up, so it is noticed right away
   const [saving, setSaving] = useState(false)
 
   const loadAccounts = async () => {

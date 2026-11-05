@@ -6,6 +6,7 @@
 // Used by the Tanks Count page and the Tanks Count tiles of the home pages.
 import { supabase } from './supabaseClient'
 import { BRANCHES } from './branches'
+import { borrowedOf } from './utang'
 
 // the Truck has no borrowed tanks (it is not a store)
 export const BORROWED_BRANCHES = BRANCHES.filter((b) => b.name !== 'Truck')
@@ -34,7 +35,7 @@ export async function loadTankCounts(day, branchIds, ownBranch) {
   // borrowed tanks given out until the end of the day, and the ones returned by then
   let ordersQuery = supabase
     .from('orders')
-    .select('id, branch, item_name, quantity')
+    .select('id, branch, item_name, quantity, borrowed_tank, borrowed_qty')
     .eq('borrowed_tank', true)
     .eq('status', 'accepted')
     .lt('accepted_at', to.toISOString())
@@ -59,7 +60,7 @@ export async function loadTankCounts(day, branchIds, ownBranch) {
     const back = (returnsResult.data || [])
       .filter((t) => t.order_id === o.id)
       .reduce((sum, t) => sum + t.quantity, 0)
-    const out = Math.max(o.quantity - back, 0)
+    const out = Math.max(borrowedOf(o) - back, 0)
     const key = `borrowed:${o.branch}:${o.item_name.replace('LPG Cylinder ', '')}:e`
     counts[key] = (counts[key] || 0) + out
   }

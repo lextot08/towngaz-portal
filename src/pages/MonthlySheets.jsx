@@ -89,8 +89,8 @@ const sumEntries = (entries, key) =>
 
 // ---- Page 1: income summary ----
 export function IncomeSummary({ orders, entries, canEdit, onSave }) {
-  const gross = sumAmount(orders.filter(isGross)) + otherIncomeOfOrders(orders)
-  const gcash = sumAmount(orders.filter(isGcash))
+  const gross = sumAmount(orders.filter(isGross)) + otherIncomeOfOrders(orders, false)
+  const gcash = sumAmount(orders.filter(isGcash)) + otherIncomeOfOrders(orders, true)
   const benta = sumEntries(entries, 'benta')
   const add = sumEntries(entries, 'add')
   const utang = sumAmount(orders.filter(isUtang)) // collectibles of the branches

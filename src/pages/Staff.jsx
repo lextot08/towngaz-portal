@@ -11,12 +11,14 @@ import MonthlySales from './MonthlySales'
 import YearEndReport from './YearEndReport'
 import CustomerProfile from './CustomerProfile'
 import StaffHome from './StaffHome'
+import useWaitingOrders from '../lib/useWaitingOrders'
 
 export default function Staff({ branch, fullName }) {
   const [view, setView] = useState('main')
   const [tab, setTab] = useState('home')
   const [orders, setOrders] = useState([])
   const [message, setMessage] = useState('')
+  const waiting = useWaitingOrders(branch) // website orders waiting for Accept / Reject
 
   const loadAll = async () => {
     const ordersResult = await supabase
@@ -65,7 +67,18 @@ export default function Staff({ branch, fullName }) {
   ]
 
   return (
-    <StaffLayout items={items} active={tab} onSelect={setTab}>
+    <StaffLayout
+      items={items}
+      active={tab}
+      onSelect={setTab}
+      bell={{
+        count: waiting.length,
+        onClick: () => {
+          setTab('report')
+          loadAll()
+        },
+      }}
+    >
       {message && <p className="mt-0">{message}</p>}
 
       {tab === 'home' && (

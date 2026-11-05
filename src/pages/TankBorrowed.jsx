@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import usePopupMessage from '../lib/usePopupMessage'
+import { borrowedOf } from '../lib/utang'
 import { BRANCHES, branchName } from '../lib/branches'
 import { confirmDialog } from '../components/Confirm'
 
@@ -55,6 +57,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
   const [returning, setReturning] = useState(null) // { key, qtys: { orderId: text } }
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  usePopupMessage(message) // a problem also pops up, so it is noticed right away
 
   const load = async () => {
     setMessage('')
@@ -62,7 +65,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
     let ordersQuery = supabase
       .from('orders')
       .select(
-        'id, group_id, branch, item_name, quantity, customer_name, customer_contact, customer_address, borrowed_tank, created_at, accepted_at'
+        'id, group_id, branch, item_name, quantity, borrowed_qty, customer_name, customer_contact, customer_address, borrowed_tank, created_at, accepted_at'
       )
       .eq('borrowed_tank', true)
       .in('status', ['pending', 'accepted'])
@@ -91,7 +94,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
 
   // the tanks given back so far, and still borrowed, of one order
   const givenBack = (o) => returns.filter((t) => t.order_id === o.id).reduce((sum, t) => sum + t.quantity, 0)
-  const stillOut = (o) => Math.max(o.quantity - givenBack(o), 0)
+  const stillOut = (o) => Math.max(borrowedOf(o) - givenBack(o), 0)
   const rowOut = (row) => row.orders.reduce((sum, o) => sum + stillOut(o), 0)
   // the latest return of a row (for the date shown, and for Undo)
   const latestReturn = (row) =>
@@ -206,7 +209,7 @@ export default function TankBorrowed({ branch: ownBranch }) {
         )
       }
       const qty = list.reduce((sum, o) => sum + (kind === 'returned' ? givenBack(o) : stillOut(o)), 0)
-      const original = list.reduce((sum, o) => sum + o.quantity, 0)
+      const original = list.reduce((sum, o) => sum + borrowedOf(o), 0)
       return (
         <td key={`${kind}-${s}`} className="text-center">
           {qty > 0 ? qty : ''}

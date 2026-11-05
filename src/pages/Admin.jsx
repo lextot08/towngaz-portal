@@ -11,6 +11,7 @@ import YearEndReport from './YearEndReport'
 import TankRevolving from './TankRevolving'
 import AdminHome from './AdminHome'
 import CustomerProfile from './CustomerProfile'
+import useWaitingOrders from '../lib/useWaitingOrders'
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
@@ -19,6 +20,8 @@ export default function Admin() {
   const [tab, setTab] = useState('home')
   const [branch, setBranch] = useState(OVERALL) // "Overall" or the branch chosen under Branches
   const [view, setView] = useState('main')
+  const [branchView, setBranchView] = useState({ view: 'inventory', n: 0 }) // the view a branch opens on
+  const waiting = useWaitingOrders(null) // website orders waiting, every branch
 
   if (view === 'updateprice') {
     return <UpdatePrice branch={ADMIN_BRANCH} onBack={() => setView('main')} />
@@ -63,6 +66,15 @@ export default function Admin() {
       onSelect={selectTab}
       activeChild={String(branch)}
       onSelectChild={selectChild}
+      bell={{
+        count: waiting.length,
+        onClick: () => {
+          // the Daily Sales Log of the first branch with a website order waiting (or Caloocan)
+          setBranch(waiting[0]?.branch ?? ADMIN_BRANCH)
+          setBranchView((b) => ({ view: 'report', n: b.n + 1 }))
+          setTab('branches')
+        },
+      }}
     >
       {tab === 'home' && (
         <AdminHome
@@ -73,7 +85,9 @@ export default function Admin() {
         />
       )}
 
-      {tab === 'branches' && <BranchView branch={branch} />}
+      {tab === 'branches' && (
+        <BranchView key={branchView.n} branch={branch} initialView={branchView.view} />
+      )}
 
       {tab === 'monthly' && <MonthlySales />}
 

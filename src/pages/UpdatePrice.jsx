@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import usePopupMessage from '../lib/usePopupMessage'
 import { confirmDialog } from '../components/Confirm'
 import { branchName } from '../lib/branches'
 import { peso } from '../lib/money'
@@ -13,6 +14,7 @@ export default function UpdatePrice({ branch, onBack }) {
   const [size, setSize] = useState('')
   const [newPrice, setNewPrice] = useState('')
   const [message, setMessage] = useState('')
+  usePopupMessage(message) // a problem also pops up, so it is noticed right away
   const [saving, setSaving] = useState(false)
 
   const loadPrices = async () => {

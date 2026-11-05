@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import usePopupMessage from '../lib/usePopupMessage'
 import { branchName } from '../lib/branches'
 import { dateString, localDateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
@@ -39,6 +40,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
   const [orders, setOrders] = useState([])
   const [entries, setEntries] = useState({}) // { "day:key": amount }, all branches added up
   const [message, setMessage] = useState('')
+  usePopupMessage(message) // a problem also pops up, so it is noticed right away
   const tableRef = useRef(null) // for the download
 
   const load = async () => {
@@ -131,8 +133,8 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
 
   // the cells of one day, or the totals of several days (dayList: the subtotal and total rows)
   const cells = (list, day, dayList = days) => {
-    // Gross: the sales without Utang and Gcash, plus the Other Income of the log
-    const gross = sumAmount(list.filter(isGross)) + otherIncomeOfOrders(list)
+    // Gross: the sales without Utang and Gcash, plus the Cash Other Income of the log
+    const gross = sumAmount(list.filter(isGross)) + otherIncomeOfOrders(list, false)
     const expenses = expensesOfOrders(list)
     const typed = (key) =>
       day ? (
@@ -151,7 +153,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
       <td key="gross" className={MONEY}>{peso(gross)}</td>,
       typed('benta'),
       <td key="expenses" className={MONEY}>{peso(expenses)}</td>,
-      <td key="gcash" className={MONEY}>{peso(sumAmount(list.filter(isGcash)))}</td>,
+      <td key="gcash" className={MONEY}>{peso(sumAmount(list.filter(isGcash)) + otherIncomeOfOrders(list, true))}</td>,
       <td key="net" className={`${MONEY} font-semibold`}>{peso(gross - expenses)}</td>,
       typed('df'),
       typed('deposit'),
@@ -255,7 +257,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
 
       <p className="mt-4 mb-0 max-w-200 text-[13px] text-gray-600">
         Gross, Expenses, Gcash and the tanks sold come from the Daily Sales Log of each day (Gross
-        leaves out Utang and Thru Gcash, and adds the Other Income). Net = Gross − Expenses.
+        leaves out Utang and Thru Gcash, and adds the Cash Other Income; the Gcash Other Income is in Gcash). Net = Gross − Expenses.
         {editable
           ? ' Double-click Benta Tanke, DF (delivery fee), Deposit or Add Tanke to type the amount of that day.'
           : ' Benta Tanke, DF (delivery fee), Deposit and Add Tanke are typed by the staff of each branch.'}{' '}

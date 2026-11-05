@@ -55,14 +55,61 @@ const subClass = (active) =>
     active ? 'bg-brand-red' : 'bg-transparent hover:bg-white/15'
   }`
 
+// The bell on the right of the top bar: the website orders waiting for Accept / Reject
+// (with a chat bubble "3 New Orders" next to it while orders are waiting)
+function Bell({ count, onClick }) {
+  const label = count > 0 ? `${count} website order${count === 1 ? '' : 's'} waiting` : 'No website orders waiting'
+  return (
+    <div className="ml-auto flex shrink-0 items-center gap-2">
+      {count > 0 && (
+        <button
+          type="button"
+          className="relative rounded-xl bg-white px-3 py-1.5 text-[13px] leading-none font-bold whitespace-nowrap text-brand-red shadow-md hover:bg-brand-light max-[900px]:px-2 max-[900px]:py-1 max-[900px]:text-[11px]"
+          onClick={onClick}
+          aria-label={label}
+        >
+          {count > 99 ? '99+' : count} New Order{count === 1 ? '' : 's'}
+          {/* the tail of the bubble, pointing at the bell */}
+          <span
+            className="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rotate-45 rounded-[2px] bg-inherit"
+            aria-hidden="true"
+          />
+        </button>
+      )}
+    <button
+      type="button"
+      className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-white hover:bg-white/15 max-[900px]:size-9"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <svg className="size-6 max-[900px]:size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+      {count > 0 && (
+        <span
+          className={`absolute -top-0.5 -right-0.5 box-border flex h-[18px] items-center justify-center rounded-full bg-brand-red text-[11px] leading-none font-bold text-white ring-2 ring-white ${
+            count < 10 ? 'w-[18px] p-0' : 'min-w-[18px] px-1'
+          }`}
+        >
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </button>
+    </div>
+  )
+}
+
 // Top bar (the picture), sidebar on the left (menu, Log Out at the bottom), page on the right.
 // An item can have subItems: they show under it while that item is the active one.
+// bell = { count, onClick }: the bell on the right of the top bar (website orders waiting).
 export default function StaffLayout({
   items,
   active,
   onSelect,
   activeChild,
   onSelectChild,
+  bell,
   children,
 }) {
   const [open, setOpen] = useState(false)
@@ -90,6 +137,7 @@ export default function StaffLayout({
             ☰
           </button>
           <img className="block h-[80%] w-auto" src="/cjg-logo-bar.png" alt="CJG Joseph and Norie Trading" />
+          {bell && <Bell count={bell.count} onClick={bell.onClick} />}
         </div>
       </header>
 

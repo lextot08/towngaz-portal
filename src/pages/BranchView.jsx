@@ -19,9 +19,10 @@ const PANEL =
   'h-[calc(100vh-260px)] min-h-[360px] overflow-auto rounded-xl border border-(color:--border) bg-white'
 
 // branch comes from the sidebar (Branches opens "Overall" and the list of six branches)
-export default function BranchView({ branch }) {
+// initialView: the view it opens on (the bell of the top bar opens the Daily Sales Log)
+export default function BranchView({ branch, initialView = 'inventory' }) {
   const isOverall = branch === OVERALL
-  const [view, setView] = useState('inventory') // inventory | report (the log) | dailyreport
+  const [view, setView] = useState(initialView) // inventory | report (the log) | dailyreport
   const [orders, setOrders] = useState([])
   const [date, setDate] = useState('') // '' means today, shared by both views
   const [message, setMessage] = useState('')

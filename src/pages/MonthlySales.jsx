@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import usePopupMessage from '../lib/usePopupMessage'
 import { BRANCHES, branchName } from '../lib/branches'
 import { dateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
@@ -51,6 +52,7 @@ export default function MonthlySales({ branch }) {
   const [entries, setEntries] = useState({}) // the typed numbers, { "branch:key": amount }
   const [receipts, setReceipts] = useState([]) // filled tanks received (admin), [{ branch, size, quantity }]
   const [message, setMessage] = useState('')
+  usePopupMessage(message) // a problem also pops up, so it is noticed right away
   const tableArea = useRef(null) // the table shown, for the download
 
   const load = async () => {
@@ -140,8 +142,8 @@ export default function MonthlySales({ branch }) {
 
   // Gross Sale, Expenses (the numbers typed in the Daily Sales Log), and Net = Gross - Expenses
   const moneyCells = (list) => {
-    // the sales without Utang and Gcash, plus the Other Income of the Daily Sales Log
-    const gross = sumAmount(list.filter(isGross)) + otherIncomeOfOrders(list)
+    // the sales without Utang and Gcash, plus the Cash Other Income of the Daily Sales Log
+    const gross = sumAmount(list.filter(isGross)) + otherIncomeOfOrders(list, false)
     const expenses = expensesOfOrders(list)
     return [
       <td key="gross" className={MONEY}>{peso(gross)}</td>,
@@ -164,7 +166,7 @@ export default function MonthlySales({ branch }) {
     )
     return [
       typed('deposit'),
-      <td key="gcash" className={MONEY}>{peso(sumAmount(list.filter(isGcash)))}</td>,
+      <td key="gcash" className={MONEY}>{peso(sumAmount(list.filter(isGcash)) + otherIncomeOfOrders(list, true))}</td>,
       typed('benta'),
       typed('add'),
     ]
@@ -299,8 +301,8 @@ export default function MonthlySales({ branch }) {
 
         <p className="mt-4 mb-0 text-[14px] text-gray-600">
           Gross Sale is the total amount (after discounts) of the orders from the 1st to the last day of{' '}
-          {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash, plus the Other Income typed in the
-          Daily Sales Log. Gcash is the
+          {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash, plus the Cash Other Income typed in the
+          Daily Sales Log (Gcash Other Income is in Gcash). Gcash is the
           total of the orders marked Thru Gcash. Expenses is the sum of the numbers typed in the Expenses
           column of the Daily Sales Log (for example &quot;gas 70 others 30&quot; = ₱100). Net =
           Gross Sale - Expenses. Deposit, Benta Tanke and Add Tanke add up the days typed in the

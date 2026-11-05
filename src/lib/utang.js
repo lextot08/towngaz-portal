@@ -12,6 +12,10 @@ export const REMARKS = [
   { key: 'gcash', label: 'Thru Gcash', chip: 'bg-violet-100 text-violet-800' },
 ]
 
+// the borrowed tanks of an order: all its tanks when marked Borrowed, unless a smaller number
+// was typed in Customer Profile (borrowed_qty)
+export const borrowedOf = (o) => (o.borrowed_tank ? (o.borrowed_qty ?? o.quantity) : 0)
+
 // the remarks of an order
 export const remarksOf = (o) =>
   [

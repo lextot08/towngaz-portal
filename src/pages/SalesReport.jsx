@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import usePopupMessage from '../lib/usePopupMessage'
+import { contactError, filterContact } from '../lib/accountRules'
 import { confirmDialog } from '../components/Confirm'
 import { branchName } from '../lib/branches'
 import { todayString, localDateString } from '../lib/dateUtils'
@@ -115,8 +117,9 @@ const ROW_INPUT = 'box-border block w-full min-w-0 p-1.5 text-[13px]'
 // The size columns (2.7kg, 11kg, 22kg, 50kg) share 20% between them.
 // WIDTHS_SELECT is used while choosing orders to delete (a small box column at the end).
 // (remarks = the Expenses column, utang = the Remark column, other = the Other Income column)
-const WIDTHS_VIEW = { time: 7, name: 14, contact: 9, address: 11, unit: 7, amount: 10, remarks: 8, utang: 8, other: 6 }
-const WIDTHS_SELECT = { time: 6, name: 13, contact: 8, address: 10, unit: 7, amount: 9, remarks: 8, utang: 8, other: 6, select: 5 }
+// (order = the small Accept / Reject column of website orders)
+const WIDTHS_VIEW = { time: 6, name: 12, contact: 9, address: 10, unit: 7, amount: 9, remarks: 8, utang: 7, other: 6, order: 6 }
+const WIDTHS_SELECT = { time: 6, name: 11, contact: 8, address: 9, unit: 7, amount: 9, remarks: 7, utang: 7, other: 6, order: 6, select: 4 }
 
 // Other Income: a temporary column after Remark (extra money from another source, typed like the
 // Expenses and added to the Gross of the reports). Set to false to hide it again.
@@ -180,6 +183,7 @@ export default function SalesReport({
   const [acceptingKeys, setAcceptingKeys] = useState([]) // new orders clicked just now (being accepted)
   const [seenIds, setSeenIds] = useState(loadSeen) // website orders already clicked
   const [message, setMessage] = useState('')
+  usePopupMessage(message) // a problem also pops up, so it is noticed right away
 
   // The sizes are needed for the columns. The stock (with the price) is only needed for editing.
   const loadExtra = async () => {
@@ -239,7 +243,7 @@ export default function SalesReport({
 
   const sizeList = extra.sizes
   const sizeCols = Math.max(sizeList.length, 1)
-  const totalCols = 4 + sizeCols + 4 + (SHOW_OTHER_INCOME ? 1 : 0) + (selecting ? 1 : 0)
+  const totalCols = 4 + sizeCols + 4 + (SHOW_OTHER_INCOME ? 1 : 0) + 1 + (selecting ? 1 : 0)
   const W = selecting ? WIDTHS_SELECT : WIDTHS_VIEW
   // a cell that opens for editing on double-click
   const EDITABLE = canEdit ? 'cursor-cell hover:bg-black/[0.03]' : ''
@@ -282,8 +286,8 @@ export default function SalesReport({
   const nDiscount = newRow && newRow.discount !== '' ? Number(newRow.discount) : 0
   const nDiscountOk = Number.isFinite(nDiscount) && nDiscount > 0 && nDiscount < nAmount
 
-  // ---- A new website order has a red outline and (!) so the staff notice it; one click on the
-  // row hides them. (An old order still waiting is accepted by clicking its row.) ----
+  // ---- A new website order waits for the staff (red outline and (!)) until it is accepted or
+  // rejected in the Order column; an accepted one keeps the outline until its row is clicked. ----
   const isNewOrder = (g) =>
     g.orders.some(
       (x) =>
@@ -298,27 +302,40 @@ export default function SalesReport({
       setSeenIds(next)
       saveSeen(next)
     }
-    acceptRow(g)
   }
 
-  const acceptRow = async (g) => {
-    if (!canEdit || !g.orders.some((x) => x.status === 'pending') || acceptingKeys.includes(g.key)) {
+  // Accept (the stock goes down now) or Reject (cancelled, the stock is not touched) a website order
+  const decideRow = async (g, accept) => {
+    const waiting = g.orders.filter((x) => x.status === 'pending')
+    if (!canEdit || waiting.length === 0 || acceptingKeys.includes(g.key)) return
+    if (
+      !accept &&
+      !(await confirmDialog(
+        `Reject the order of ${g.orders[0].customer_name || 'this customer'}? The customer will see it as cancelled.`
+      ))
+    ) {
       return
     }
-    setAcceptingKeys((keys) => [...keys, g.key]) // hide the outline right away
+    setAcceptingKeys((keys) => [...keys, g.key])
     setMessage('')
     let failed = null
-    for (const x of g.orders.filter((y) => y.status === 'pending')) {
-      const { error } = await supabase.rpc('accept_order', { p_order_id: x.id })
+    for (const x of waiting) {
+      const { error } = await supabase.rpc(accept ? 'accept_order' : 'reject_order', { p_order_id: x.id })
       if (error) {
         failed = error
         break
       }
     }
+    if (!failed) {
+      // it was seen: no outline after accepting
+      const next = [...seenIds, ...waiting.map((x) => x.id)]
+      setSeenIds(next)
+      saveSeen(next)
+    }
     await reload()
     await loadExtra()
     setAcceptingKeys((keys) => keys.filter((k) => k !== g.key))
-    if (failed) setMessage(`The order could not be accepted: ${failed.message}`)
+    if (failed) setMessage(`The order could not be ${accept ? 'accepted' : 'rejected'}: ${failed.message}`)
   }
 
   // ---- Add order: an empty row at the top of the table ----
@@ -364,6 +381,10 @@ export default function SalesReport({
     }
     if (!r.contact.trim()) {
       setMessage('Contact number is required')
+      return
+    }
+    if (contactError(r.contact.trim())) {
+      setMessage(`${contactError(r.contact.trim())} (you typed ${r.contact.trim().length})`)
       return
     }
     if (nItems.length === 0) {
@@ -446,7 +467,7 @@ export default function SalesReport({
         : field === 'remarks'
           ? o.remarks || ''
           : field === 'other'
-          ? o.other_income || ''
+          ? { text: o.other_income || '', gcash: Boolean(o.other_income_gcash) }
           : field === 'utang'
             ? {
                 utang: o.utang_status || null,
@@ -478,8 +499,8 @@ export default function SalesReport({
 
     // Other Income has its own function
     if (cell.field === 'other') {
-      const text = value.trim()
-      if (text === (list[0].other_income || '')) {
+      const text = value.text.trim()
+      if (text === (list[0].other_income || '') && value.gcash === Boolean(list[0].other_income_gcash)) {
         setCell(null)
         return
       }
@@ -487,6 +508,7 @@ export default function SalesReport({
       const ok = await callFunction('set_order_other_income', {
         p_order_ids: list.map((x) => x.id),
         p_text: text,
+        p_gcash: value.gcash,
       })
       savingCell.current = false
       if (ok) setCell(null)
@@ -727,14 +749,15 @@ export default function SalesReport({
       {message && <p className="mt-0">{message}</p>}
 
       <p className="mt-0 text-[14px]">
-        Website orders go out for delivery at once and are shown first until their Remark is set to
-        Delivered. A new one has a red outline and (!); click the row to clear it.
+        Website orders are shown first with a red outline and (!). Accept one in the Order column to
+        take it from the stock and send it out for delivery, or Reject it (the customer sees it as
+        cancelled). It stays on top until its Remark is set to Delivered.
         {canEdit && (
           <>
             {' '}
             Double-click a Customer name (to change the name or the type), a size (to change the
             quantity or add a size to the order; 0 removes it), Amount (for the discount), Expenses,
-            Remark (Utang, Bayad Utang, Borrowed, Delivered, Thru Gcash){SHOW_OTHER_INCOME ? ', or Other Income (extra money, added to the Gross)' : ''} cell to edit it. H = Household,
+            Remark (Utang, Bayad Utang, Borrowed, Delivered, Thru Gcash){SHOW_OTHER_INCOME ? ', or Other Income (extra money: Cash is added to the Gross, Gcash to the Gcash)' : ''} cell to edit it. H = Household,
             C = Commercial, RTO = Retail Outlet. Press Enter to save or Esc to cancel.
           </>
         )}
@@ -759,6 +782,7 @@ export default function SalesReport({
             <col style={{ width: `${W.remarks}%` }} />
             <col style={{ width: `${W.utang}%` }} />
             {SHOW_OTHER_INCOME && <col style={{ width: `${W.other}%` }} />}
+            <col style={{ width: `${W.order}%` }} />
             {selecting && <col style={{ width: `${W.select}%` }} />}
           </colgroup>
           <thead>
@@ -773,6 +797,7 @@ export default function SalesReport({
               <th rowSpan={2}>Expenses</th>
               <th rowSpan={2}>Remark</th>
               {SHOW_OTHER_INCOME && <th rowSpan={2}>Other Income</th>}
+              <th rowSpan={2} className="text-center">Order</th>
               {selecting && <th rowSpan={2} className="text-center">Delete</th>}
             </tr>
             <tr>
@@ -814,7 +839,7 @@ export default function SalesReport({
                     type="tel"
                     placeholder="Contact no."
                     value={newRow.contact}
-                    onChange={setNew('contact')}
+                    onChange={(e) => setNewRow((row) => ({ ...row, contact: filterContact(e.target.value) }))}
                   />
                 </td>
                 <td>
@@ -878,6 +903,7 @@ export default function SalesReport({
                   Double-click after saving
                 </td>
                 {SHOW_OTHER_INCOME && <td></td>}
+                <td></td>
               </tr>
             )}
 
@@ -1069,25 +1095,85 @@ export default function SalesReport({
                   {SHOW_OTHER_INCOME && (
                     <td className={EDITABLE} onDoubleClick={() => startCell(g, 'other')}>
                       {isEditing(g, 'other') ? (
-                        <GrowBox
-                          autoFocus
-                          onFocus={cursorToEnd}
-                          placeholder="Other income"
-                          value={cell.value}
-                          onChange={(e) => setCellValue(e.target.value)}
-                          onKeyDown={cellKeys}
-                          onBlur={() => saveCell(g)}
-                        />
+                        // the text, and Cash or Gcash (saved when leaving the cell)
+                        <div onBlur={leaveNameCell(g)}>
+                          <GrowBox
+                            autoFocus
+                            onFocus={cursorToEnd}
+                            placeholder="Other income"
+                            value={cell.value.text}
+                            onChange={(e) => setCellValue({ ...cell.value, text: e.target.value })}
+                            onKeyDown={cellKeys}
+                          />
+                          <div className="mt-1 grid gap-0.5">
+                            {[
+                              { label: 'Cash', gcash: false },
+                              { label: 'Gcash', gcash: true },
+                            ].map((m) => (
+                              <button
+                                key={m.label}
+                                type="button"
+                                onClick={() => setCellValue({ ...cell.value, gcash: m.gcash })}
+                                onKeyDown={(e) => e.key === 'Escape' && cancelCell()}
+                                className={`rounded-md px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap ${
+                                  cell.value.gcash === m.gcash
+                                    ? m.gcash
+                                      ? 'bg-violet-600 text-white'
+                                      : 'bg-brand-pine text-white'
+                                    : 'border border-(color:--border) bg-white text-gray-500'
+                                }`}
+                              >
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       ) : (
                         <>
                           {o.other_income || ''}
                           {expenseOf(o.other_income) > 0 && (
-                            <div className="text-[12px] text-gray-500">= {peso(expenseOf(o.other_income))}</div>
+                            <div className="text-[12px] text-gray-500">
+                              = {peso(expenseOf(o.other_income))}{' '}
+                              <span
+                                className={`rounded-full px-1.5 text-[10px] font-semibold ${
+                                  o.other_income_gcash ? 'bg-violet-100 text-violet-800' : 'bg-green-100 text-green-800'
+                                }`}
+                              >
+                                {o.other_income_gcash ? 'Gcash' : 'Cash'}
+                              </span>
+                            </div>
                           )}
                         </>
                       )}
                     </td>
                   )}
+                  {/* Accept / Reject: only for a website order still waiting */}
+                  <td className="text-center align-middle!" data-export={g.orders.some((x) => x.status === 'pending') ? 'Waiting' : ''}>
+                    {g.orders.some((x) => x.status === 'pending') && (
+                      canEdit ? (
+                        <div className="grid gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="rounded-md bg-brand-pine px-1.5 py-1 text-[11px] font-semibold text-white"
+                            disabled={acceptingKeys.includes(g.key)}
+                            onClick={() => decideRow(g, true)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md border border-brand-red bg-white px-1.5 py-1 text-[11px] font-semibold text-brand-red"
+                            disabled={acceptingKeys.includes(g.key)}
+                            onClick={() => decideRow(g, false)}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-orange-700">Waiting</span>
+                      )
+                    )}
+                  </td>
                   {selecting && (
                     <td className="text-center align-middle!">
                       <input
@@ -1115,6 +1201,7 @@ export default function SalesReport({
               </td>
               <td></td>
               {SHOW_OTHER_INCOME && <td>{dayOtherIncome > 0 && <strong>{peso(dayOtherIncome)}</strong>}</td>}
+              <td></td>
               {selecting && <td></td>}
             </tr>
           </tfoot>
