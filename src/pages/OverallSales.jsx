@@ -9,7 +9,7 @@ const OUTLINE =
 const CELL = 'border border-(color:--border) px-3 py-2 text-center'
 const LABEL = 'border border-(color:--border) px-3 py-2 text-left'
 
-// Overall Daily Sales Report (view only): the cylinders sold on the chosen day,
+// Overall Daily Sales Log (view only): the cylinders sold on the chosen day,
 // one row per branch and one column per size, with the total of all branches at the bottom.
 export default function OverallSales({ headerLeft, date, onDateChange, tableClass }) {
   const [sizes, setSizes] = useState([])

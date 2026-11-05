@@ -1,6 +1,6 @@
 // Helpers of the Monthly Sales Report (Sales per Branch and the other pages).
 
-// the amount of one order after its discount, like the Daily Sales Report
+// the amount of one order after its discount, like the Daily Sales Log
 export const amountOf = (o) => Number(o.total_price) - Number(o.discount || 0)
 // Utang = money lent: not paid yet, so it is a collectible and not in the Gross Sale
 export const isUtang = (o) => o.utang_status === 'utang'

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
-import { todayString } from '../lib/dateUtils'
+import { dateString, todayString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { expensesOfOrders } from '../lib/expenses'
-import { IncomeSummary, VolumeTarget, TanksVolume, Entry } from './MonthlySheets'
+import { IncomeSummary, VolumeTarget, TanksVolume } from './MonthlySheets'
 import DateButton from '../components/DateButton'
 import DownloadButtons from '../components/DownloadButtons'
 import { entryOf, isGross, isGcash, sumAmount, soldOf } from '../lib/monthly'
@@ -26,6 +26,9 @@ const monthText = (ym) => {
 
 const thisMonth = () => todayString().slice(0, 7)
 
+// typed day by day in the Daily Sales Report, added up here
+const DAILY_KEYS = ['deposit', 'benta', 'add']
+
 // the pages of the report (admin)
 const SHEETS = [
   { key: 'branches', label: 'Sales per Branch' },
@@ -37,7 +40,7 @@ const SHEETS = [
 // Monthly Sales Report: one row per branch for the chosen month (admin: all branches,
 // staff: only their own branch, passed as the branch prop).
 // Gross Sale = the amounts (after discount) of the accepted orders from the 1st to the last day.
-// Deposit, Benta Tanke and Add Tanke are typed by the admin (double-click); the staff only see them.
+// Deposit, Benta Tanke and Add Tanke add up the days of the Daily Sales Report (typed by the staff).
 export default function MonthlySales({ branch }) {
   const isAdmin = !branch
   const shownBranches = branch ? BRANCHES.filter((b) => b.id === branch) : BRANCHES
@@ -75,24 +78,36 @@ export default function MonthlySales({ branch }) {
     setSizes([...new Set(sizesResult.data.map((p) => p.size))])
     setOrders(ordersResult.data)
 
-    // the typed numbers and the tanks received (these need supabase/monthly_report.sql)
+    // the typed numbers and the tanks received (these need supabase/monthly_report.sql), and the
+    // days of the Daily Sales Report (supabase/daily_report.sql)
     const entriesResult = await supabase
       .from('monthly_entries')
       .select('branch, key, amount')
       .eq('month', `${month}-01`)
+    let dailyQuery = supabase
+      .from('daily_entries')
+      .select('branch, key, amount')
+      .in('key', DAILY_KEYS)
+      .gte('day', `${month}-01`)
+      .lt('day', dateString(to))
+    if (branch) dailyQuery = dailyQuery.eq('branch', branch)
+    const dailyResult = await dailyQuery
     const receiptsResult = isAdmin
       ? await supabase.rpc('monthly_receipts', { p_from: from.toISOString(), p_to: to.toISOString() })
       : { data: [] }
-    if (entriesResult.error || receiptsResult.error) {
-      setMessage(
-        `Some numbers could not be loaded: ${(entriesResult.error || receiptsResult.error).message}`
-      )
-    }
-    setEntries(
-      Object.fromEntries(
-        (entriesResult.data || []).map((e) => [`${e.branch}:${e.key}`, Number(e.amount)])
-      )
+    const failed = entriesResult.error || receiptsResult.error || dailyResult.error
+    if (failed) setMessage(`Some numbers could not be loaded: ${failed.message}`)
+    // the admin's typed numbers, then Deposit, Benta Tanke and Add Tanke from the days
+    const next = Object.fromEntries(
+      (entriesResult.data || [])
+        .filter((e) => !DAILY_KEYS.includes(e.key))
+        .map((e) => [`${e.branch}:${e.key}`, Number(e.amount)])
     )
+    for (const e of dailyResult.data || []) {
+      const k = `${e.branch}:${e.key}`
+      next[k] = (next[k] || 0) + Number(e.amount)
+    }
+    setEntries(next)
     setReceipts(receiptsResult.data || [])
   }
 
@@ -123,7 +138,7 @@ export default function MonthlySales({ branch }) {
 
   const sizeCols = Math.max(sizes.length, 1)
 
-  // Gross Sale, Expenses (the numbers typed in the Daily Sales Report), and Net = Gross - Expenses
+  // Gross Sale, Expenses (the numbers typed in the Daily Sales Log), and Net = Gross - Expenses
   const moneyCells = (list) => {
     const gross = sumAmount(list.filter(isGross))
     const expenses = expensesOfOrders(list)
@@ -134,24 +149,18 @@ export default function MonthlySales({ branch }) {
     ]
   }
 
-  // after Net: Deposit, Gcash, Benta Tanke and Add Tanke. A branch's typed numbers can be edited;
-  // the total row adds up the branches.
+  // after Net: Deposit, Gcash, Benta Tanke and Add Tanke (the days of the Daily Sales Report added
+  // up); the total row adds up the branches.
   const middleCells = (list, rowBranch) => {
-    const typed = (key) =>
-      rowBranch ? (
-        <Entry
-          key={key}
-          as="td"
-          className={MONEY}
-          value={entryOf(entries, rowBranch, key)}
-          canEdit={isAdmin}
-          onSave={(v) => saveEntry(rowBranch, key, v)}
-        />
-      ) : (
-        <td key={key} className={MONEY}>
-          {peso(BRANCHES.reduce((sum, b) => sum + (entryOf(entries, b.id, key) || 0), 0))}
-        </td>
-      )
+    const typed = (key) => (
+      <td key={key} className={MONEY}>
+        {peso(
+          rowBranch
+            ? entryOf(entries, rowBranch, key) || 0
+            : BRANCHES.reduce((sum, b) => sum + (entryOf(entries, b.id, key) || 0), 0)
+        )}
+      </td>
+    )
     return [
       typed('deposit'),
       <td key="gcash" className={MONEY}>{peso(sumAmount(list.filter(isGcash)))}</td>,
@@ -229,7 +238,7 @@ export default function MonthlySales({ branch }) {
       {isAdmin && sheet !== 'branches' && (
         <p className="mt-4 mb-0 text-[14px] text-gray-600">
           {sheet === 'income' &&
-            'Gross Sales, Gcash and Expenses come from the Daily Sales Reports of the month; Benta Tanke and Add Tanke are the amounts typed in Sales per Branch. Collectibles of the branches = the orders marked Utang. Double-click Nawa / Unwind or BIVMC Purchases to type them.'}
+            'Gross Sales, Gcash and Expenses come from the Daily Sales Logs of the month; Benta Tanke and Add Tanke add up the days of the Daily Sales Reports. Collectibles of the branches = the orders marked Utang. Double-click Nawa / Unwind or BIVMC Purchases to type them.'}
           {sheet === 'target' &&
             'Actual = the kg sold by the branch in the month (cylinders x size). BIVMC Receipts = the kg of the filled tanks received (Incoming/Refill of the Stock Inventory). Double-click T1, T2 or T3 to type a target in kg; the Status compares the total actual kg with the targets.'}
           {sheet === 'volume' &&
@@ -291,10 +300,10 @@ export default function MonthlySales({ branch }) {
           Gross Sale is the total amount (after discounts) of the orders from the 1st to the last day of{' '}
           {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash. Gcash is the
           total of the orders marked Thru Gcash. Expenses is the sum of the numbers typed in the Expenses
-          column of the Daily Sales Report (for example &quot;gas 70 others 30&quot; = ₱100). Net =
-          Gross Sale - Expenses. Deposit, Benta Tanke and Add Tanke are typed by the admin
-          {isAdmin ? ' (double-click a cell)' : ''}. Tanks Count is the number of cylinders sold in the
-          month, per size.
+          column of the Daily Sales Log (for example &quot;gas 70 others 30&quot; = ₱100). Net =
+          Gross Sale - Expenses. Deposit, Benta Tanke and Add Tanke add up the days typed in the
+          Daily Sales Report of each branch. Tanks Count is the number of cylinders sold in the month,
+          per size.
         </p>
         </>
       )}

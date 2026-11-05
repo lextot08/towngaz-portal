@@ -4,9 +4,10 @@ import { branchName } from '../lib/branches'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
 import OverallSales from './OverallSales'
+import DailySalesReport from './DailySalesReport'
 
 const OVERALL = 0 // "Overall": the total of all branches (view only)
-// The admin edits the Stock Inventory of every branch, and the Daily Sales Report of Caloocan
+// The admin edits the Stock Inventory and the Daily Sales Report of every branch, and the Daily Sales Log of Caloocan
 // (the main branch) only.
 const ADMIN_BRANCH = 1
 
@@ -20,7 +21,7 @@ const PANEL =
 // branch comes from the sidebar (Branches opens "Overall" and the list of six branches)
 export default function BranchView({ branch }) {
   const isOverall = branch === OVERALL
-  const [view, setView] = useState('inventory') // inventory | report
+  const [view, setView] = useState('inventory') // inventory | report (the log) | dailyreport
   const [orders, setOrders] = useState([])
   const [date, setDate] = useState('') // '' means today, shared by both views
   const [message, setMessage] = useState('')
@@ -59,10 +60,24 @@ export default function BranchView({ branch }) {
         Stock Inventory
       </button>
       <button className={viewButton('report')} onClick={() => setView('report')}>
+        Daily Sales Log
+      </button>
+      <button className={viewButton('dailyreport')} onClick={() => setView('dailyreport')}>
         Daily Sales Report
       </button>
     </div>
   )
+
+  if (currentView === 'dailyreport') {
+    return (
+      <DailySalesReport
+        branch={isOverall ? null : branch}
+        canEdit={!isOverall}
+        headerLeft={headerLeft}
+        tableClass={PANEL}
+      />
+    )
+  }
 
   if (isOverall && currentView === 'report') {
     return (

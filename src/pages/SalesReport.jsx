@@ -143,7 +143,7 @@ function GrowBox({ value, onChange, placeholder, onKeyDown, ...rest }) {
   )
 }
 
-// The Daily Sales Report, used by the staff page and by the admin's Branches page.
+// The Daily Sales Log (the orders of a day), used by the staff page and by the admin's Branches page.
 // canEdit = true shows Add order / Accept / Edit / Delete (staff, and the admin on Caloocan).
 export default function SalesReport({
   branch,
@@ -241,7 +241,7 @@ export default function SalesReport({
   const pendingOrders = orders.filter((o) => o.status === 'pending')
   const acceptedOrders = orders.filter((o) => o.status === 'accepted')
 
-  // Daily Sales Report: website orders not delivered yet (any date, on top) + the orders of the
+  // Daily Sales Log: website orders not delivered yet (any date, on top) + the orders of the
   // chosen day. (Orders still "pending" are from before website orders were accepted at once.)
   const shownDate = reportDate || todayString()
   const dayOrders = acceptedOrders.filter((o) => localDateString(o.accepted_at) === shownDate)
@@ -645,7 +645,7 @@ export default function SalesReport({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         {headerLeft ?? (
           <div>
-            <h1 className="m-0 text-2xl">Daily Sales Report</h1>
+            <h1 className="m-0 text-2xl">Daily Sales Log</h1>
             <p className="m-0 text-[14px] text-gray-500">{branchName(branch)}</p>
           </div>
         )}
@@ -659,9 +659,9 @@ export default function SalesReport({
           {!newRow && !selecting && (
             <DownloadButtons
               getTable={() => tableRef.current}
-              title="Daily Sales Report"
+              title="Daily Sales Log"
               subtitle={`${branchName(branch)} · ${shownDate}`}
-              filename={`Daily Sales Report - ${branchName(branch)} - ${shownDate}`}
+              filename={`Daily Sales Log - ${branchName(branch)} - ${shownDate}`}
             />
           )}
           {canEdit &&

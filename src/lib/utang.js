@@ -1,4 +1,4 @@
-// The Remark column of the Daily Sales Report. A row can have several remarks at once.
+// The Remark column of the Daily Sales Log. A row can have several remarks at once.
 //   Utang       = money lent (the customer pays later): not counted in the Gross Sale
 //   Bayad Utang = that money was paid
 //   Borrowed    = the customer kept the tank: listed in Borrowed, counted in the EMPTIES

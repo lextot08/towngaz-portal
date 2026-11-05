@@ -1,4 +1,4 @@
-// The Expenses column of the Daily Sales Report is free text, for example "gas 70 others 30".
+// The Expenses column of the Daily Sales Log is free text, for example "gas 70 others 30".
 // Its value is the sum of the numbers in it: "gas 70 others 30" -> 100, "food 1,250.50" -> 1250.5
 export const expenseOf = (text) => {
   const numbers =

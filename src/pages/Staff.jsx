@@ -4,6 +4,7 @@ import StaffLayout from '../components/StaffLayout'
 import UpdatePrice from './UpdatePrice'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
+import DailySalesReport from './DailySalesReport'
 import TankBorrowed from './TankBorrowed'
 import TankRevolving from './TankRevolving'
 import MonthlySales from './MonthlySales'
@@ -53,9 +54,10 @@ export default function Staff({ branch, fullName }) {
     { key: 'tankcount', label: 'Tanks Count', icon: 'list' },
     {
       key: 'report',
-      label: `Daily Sales Report${toDeliver.length > 0 ? ` (${toDeliver.length})` : ''}`,
+      label: `Daily Sales Log${toDeliver.length > 0 ? ` (${toDeliver.length})` : ''}`,
       icon: 'report',
     },
+    { key: 'dailyreport', label: 'Daily Sales Report', icon: 'file' },
     { key: 'borrowed', label: 'Borrowed', icon: 'repeat' },
     { key: 'monthly', label: 'Monthly Sales Report', icon: 'calendar' },
     { key: 'yearend', label: 'Year End Report', icon: 'file' },
@@ -83,6 +85,8 @@ export default function Staff({ branch, fullName }) {
       {tab === 'report' && (
         <SalesReport branch={branch} orders={orders} reload={loadAll} canEdit showRefresh />
       )}
+      {tab === 'dailyreport' && <DailySalesReport branch={branch} canEdit />}
+
       {/* the reports, with only this branch's orders */}
       {tab === 'monthly' && <MonthlySales branch={branch} />}
 
@@ -90,7 +94,7 @@ export default function Staff({ branch, fullName }) {
 
       {tab === 'customers' && <CustomerProfile branch={branch} />}
 
-      {/* Borrowed: the orders marked Utang (and Bayad Utang) in the Daily Sales Report */}
+      {/* Borrowed: the orders marked Borrowed in the Daily Sales Log */}
       {tab === 'borrowed' && <TankBorrowed branch={branch} />}
 
     </StaffLayout>

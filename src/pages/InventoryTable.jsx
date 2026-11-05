@@ -135,7 +135,7 @@ const emptiesSaved = (e) => ({
 // the message for a number that cannot be saved, or ''
 const filledProblem = (name, v, minSales) => {
   if (v.sales < minSales) {
-    return `${name}: Sales cannot be lower than ${minSales} (the orders already in the Daily Sales Report)`
+    return `${name}: Sales cannot be lower than ${minSales} (the orders already in the Daily Sales Log)`
   }
   if (v.ending < 0) return `${name}: Sales (${v.sales}) cannot be more than the Total (${v.total})`
   if (v.actual < 0) return `${name}: the Actual Count cannot be below 0 (Ending ${v.ending}, Variance ${v.variance})`
