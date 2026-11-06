@@ -28,7 +28,7 @@ const monthText = (ym) => {
 const thisMonth = () => todayString().slice(0, 7)
 
 // typed day by day in the Daily Sales Report, added up here
-const DAILY_KEYS = ['deposit', 'benta', 'add']
+const DAILY_KEYS = ['deposit', 'benta', 'add', 'gcash']
 
 // the pages of the report (admin)
 const SHEETS = [
@@ -166,7 +166,15 @@ export default function MonthlySales({ branch }) {
     )
     return [
       typed('deposit'),
-      <td key="gcash" className={MONEY}>{peso(sumAmount(list.filter(isGcash)) + otherIncomeOfOrders(list, true))}</td>,
+      <td key="gcash" className={MONEY}>
+        {peso(
+          sumAmount(list.filter(isGcash)) +
+            otherIncomeOfOrders(list, true) +
+            (rowBranch
+              ? entryOf(entries, rowBranch, 'gcash') || 0
+              : BRANCHES.reduce((sum, b) => sum + (entryOf(entries, b.id, 'gcash') || 0), 0))
+        )}
+      </td>,
       typed('benta'),
       typed('add'),
     ]
@@ -303,7 +311,7 @@ export default function MonthlySales({ branch }) {
           Gross Sale is the total amount (after discounts) of the orders from the 1st to the last day of{' '}
           {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash, plus the Cash Other Income typed in the
           Daily Sales Log (Gcash Other Income is in Gcash). Gcash is the
-          total of the orders marked Thru Gcash. Expenses is the sum of the numbers typed in the Expenses
+          total of the orders marked Thru Gcash, plus the Gcash typed in the Daily Sales Report. Expenses is the sum of the numbers typed in the Expenses
           column of the Daily Sales Log (for example &quot;gas 70 others 30&quot; = ₱100). Net =
           Gross Sale - Expenses. Deposit, Benta Tanke and Add Tanke add up the days typed in the
           Daily Sales Report of each branch. Tanks Count is the number of cylinders sold in the month,

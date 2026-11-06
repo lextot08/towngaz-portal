@@ -131,6 +131,32 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
   const sizeCols = Math.max(sizes.length, 1)
   const editable = canEdit && Boolean(branch)
 
+  // Gcash: from the log (Thru Gcash orders, Gcash Other Income), plus the amount typed for the day
+  // (for example a debt from before the system paid through Gcash)
+  const gcashCell = (list, day, dayList) => {
+    const fromLog = sumAmount(list.filter(isGcash)) + otherIncomeOfOrders(list, true)
+    if (!day) {
+      return <td key="gcash" className={MONEY}>{peso(fromLog + typedTotal('gcash', dayList))}</td>
+    }
+    return (
+      <Entry
+        key="gcash"
+        as="td"
+        className={MONEY}
+        value={typedOf(day, 'gcash')}
+        canEdit={editable}
+        onSave={(v) => saveEntry(day, 'gcash', v)}
+        empty={peso(fromLog)}
+        format={(v) => (
+          <span className="grid">
+            <span>{peso(fromLog + v)}</span>
+            <span className="text-[10px] leading-3 text-violet-700">incl. {peso(v)} typed</span>
+          </span>
+        )}
+      />
+    )
+  }
+
   // the cells of one day, or the totals of several days (dayList: the subtotal and total rows)
   const cells = (list, day, dayList = days) => {
     // Gross: the sales without Utang and Gcash, plus the Cash Other Income of the log
@@ -153,7 +179,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
       <td key="gross" className={MONEY}>{peso(gross)}</td>,
       typed('benta'),
       <td key="expenses" className={MONEY}>{peso(expenses)}</td>,
-      <td key="gcash" className={MONEY}>{peso(sumAmount(list.filter(isGcash)) + otherIncomeOfOrders(list, true))}</td>,
+      gcashCell(list, day, dayList),
       <td key="net" className={`${MONEY} font-semibold`}>{peso(gross - expenses)}</td>,
       typed('df'),
       typed('deposit'),
@@ -259,7 +285,7 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
         Gross, Expenses, Gcash and the tanks sold come from the Daily Sales Log of each day (Gross
         leaves out Utang and Thru Gcash, and adds the Cash Other Income; the Gcash Other Income is in Gcash). Net = Gross − Expenses.
         {editable
-          ? ' Double-click Benta Tanke, DF (delivery fee), Deposit or Add Tanke to type the amount of that day.'
+          ? ' Double-click Benta Tanke, DF (delivery fee), Deposit or Add Tanke to type the amount of that day, or Gcash to add Gcash received that is not in the log (for example an old debt paid through Gcash).'
           : ' Benta Tanke, DF (delivery fee), Deposit and Add Tanke are typed by the staff of each branch.'}{' '}
         The Monthly Sales Report adds up these days.
       </p>

@@ -32,7 +32,8 @@ const tonsText = (kg) => `${(kg / 1000).toLocaleString('en-PH', { maximumFractio
 // A number the admin types: double-click (double-tap) anywhere on its cell to edit, Enter or
 // click away to save, Esc to cancel. An empty box removes the number.
 // as = the element of the cell ('td' for a whole table cell), children = text before the number.
-export function Entry({ value, canEdit, onSave, format = peso, as: Tag = 'span', className = 'rounded px-1', children }) {
+// empty = what to show when nothing is typed (a gray "-" when left out).
+export function Entry({ value, canEdit, onSave, format = peso, as: Tag = 'span', className = 'rounded px-1', children, empty }) {
   const [draft, setDraft] = useState(null)
   const cancelled = useRef(false)
 
@@ -76,7 +77,7 @@ export function Entry({ value, canEdit, onSave, format = peso, as: Tag = 'span',
           }}
         />
       ) : value == null ? (
-        <span className="text-gray-400">-</span>
+        (empty ?? <span className="text-gray-400">-</span>)
       ) : (
         format(value)
       )}
@@ -90,7 +91,7 @@ const sumEntries = (entries, key) =>
 // ---- Page 1: income summary ----
 export function IncomeSummary({ orders, entries, canEdit, onSave }) {
   const gross = sumAmount(orders.filter(isGross)) + otherIncomeOfOrders(orders, false)
-  const gcash = sumAmount(orders.filter(isGcash)) + otherIncomeOfOrders(orders, true)
+  const gcash = sumAmount(orders.filter(isGcash)) + otherIncomeOfOrders(orders, true) + sumEntries(entries, 'gcash')
   const benta = sumEntries(entries, 'benta')
   const add = sumEntries(entries, 'add')
   const utang = sumAmount(orders.filter(isUtang)) // collectibles of the branches

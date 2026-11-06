@@ -251,17 +251,21 @@ export default function SalesReport({
   const pendingOrders = orders.filter((o) => o.status === 'pending')
   const acceptedOrders = orders.filter((o) => o.status === 'accepted')
 
-  // Daily Sales Log: website orders not delivered yet (any date, on top) + the orders of the
-  // chosen day. (Orders still "pending" are from before website orders were accepted at once.)
+  // Daily Sales Log: the orders of the chosen day. On today, also the website orders waiting for
+  // Accept / Reject and the ones not delivered yet (from any day, on top), so they are not missed;
+  // a past day shows only its own orders.
   const shownDate = reportDate || todayString()
+  const isToday = shownDate === todayString()
   const dayOrders = acceptedOrders.filter((o) => localDateString(o.accepted_at) === shownDate)
-  const toDeliver = acceptedOrders.filter(
-    (o) =>
-      o.customer_id &&
-      o.delivery_status === 'out_for_delivery' &&
-      localDateString(o.accepted_at) !== shownDate
-  )
-  const reportRows = [...pendingOrders, ...toDeliver, ...dayOrders]
+  const toDeliver = isToday
+    ? acceptedOrders.filter(
+        (o) =>
+          o.customer_id &&
+          o.delivery_status === 'out_for_delivery' &&
+          localDateString(o.accepted_at) !== shownDate
+      )
+    : []
+  const reportRows = [...(isToday ? pendingOrders : []), ...toDeliver, ...dayOrders]
   const displayRows = toDisplayRows(reportRows)
   // total sales of the day, after the discounts
   const dayTotal = grossOf(dayOrders) - discountOf(dayOrders)
@@ -749,7 +753,7 @@ export default function SalesReport({
       {message && <p className="mt-0">{message}</p>}
 
       <p className="mt-0 text-[14px]">
-        Website orders are shown first with a red outline and (!). Accept one in the Order column to
+        On today, website orders are shown first with a red outline and (!). Accept one in the Order column to
         take it from the stock and send it out for delivery, or Reject it (the customer sees it as
         cancelled). It stays on top until its Remark is set to Delivered.
         {canEdit && (
