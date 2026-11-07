@@ -1,18 +1,20 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
+import { useEffect, useState, lazy, Suspense } from 'react'
+import { loadBranchOrders, dayStart } from '../lib/branchOrders'
+import { todayString } from '../lib/dateUtils'
 import StaffLayout from '../components/StaffLayout'
-import UpdatePrice from './UpdatePrice'
-import InventoryTable from './InventoryTable'
-import SalesReport from './SalesReport'
-import DailySalesReport from './DailySalesReport'
-import TankBorrowed from './TankBorrowed'
-import TankRevolving from './TankRevolving'
-import MonthlySales from './MonthlySales'
-import YearEndReport from './YearEndReport'
-import CustomerProfile from './CustomerProfile'
-import StaffHome from './StaffHome'
 import useWaitingOrders from '../lib/useWaitingOrders'
+
+// each page's code downloads only when it is first opened (a faster first load)
+const UpdatePrice = lazy(() => import('./UpdatePrice'))
+const InventoryTable = lazy(() => import('./InventoryTable'))
+const SalesReport = lazy(() => import('./SalesReport'))
+const DailySalesReport = lazy(() => import('./DailySalesReport'))
+const TankBorrowed = lazy(() => import('./TankBorrowed'))
+const TankRevolving = lazy(() => import('./TankRevolving'))
+const MonthlySales = lazy(() => import('./MonthlySales'))
+const YearEndReport = lazy(() => import('./YearEndReport'))
+const CustomerProfile = lazy(() => import('./CustomerProfile'))
+const StaffHome = lazy(() => import('./StaffHome'))
 
 export default function Staff({ branch, fullName }) {
   const [view, setView] = useState('main')
@@ -21,15 +23,11 @@ export default function Staff({ branch, fullName }) {
   const [message, setMessage] = useState('')
   const waiting = useWaitingOrders(branch) // website orders waiting for Accept / Reject
 
+  // Staff Home and the sidebar need only yesterday and today (and the website orders still open);
+  // the Daily Sales Log loads its own day
   const loadAll = async () => {
-    const ordersResult = await fetchAll(() =>
-      supabase
-        .from('orders')
-        .select('*')
-        .eq('branch', branch)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-    )
+    const today = todayString()
+    const ordersResult = await loadBranchOrders(branch, dayStart(today, -1), dayStart(today, 1), true)
     if (ordersResult.error) setMessage(ordersResult.error.message)
     else setOrders(ordersResult.data)
   }
@@ -40,13 +38,15 @@ export default function Staff({ branch, fullName }) {
 
   if (view === 'updateprice') {
     return (
-      <UpdatePrice
-        branch={branch}
-        onBack={() => {
-          setView('main')
-          loadAll()
-        }}
-      />
+      <Suspense fallback={<p className="m-4 text-[14px] text-gray-500">Loading...</p>}>
+        <UpdatePrice
+          branch={branch}
+          onBack={() => {
+            setView('main')
+            loadAll()
+          }}
+        />
+      </Suspense>
     )
   }
 
@@ -100,7 +100,7 @@ export default function Staff({ branch, fullName }) {
       {tab === 'tankcount' && <TankRevolving branch={branch} />}
 
       {tab === 'report' && (
-        <SalesReport branch={branch} orders={orders} reload={loadAll} canEdit showRefresh />
+        <SalesReport branch={branch} reload={loadAll} canEdit showRefresh />
       )}
       {tab === 'dailyreport' && <DailySalesReport branch={branch} canEdit />}
 

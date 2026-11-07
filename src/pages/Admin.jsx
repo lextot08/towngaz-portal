@@ -1,17 +1,19 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { BRANCHES } from '../lib/branches'
 import StaffLayout from '../components/StaffLayout'
-import BranchView from './BranchView'
-import ManageStaff from './ManageStaff'
-import Recommendations from './Recommendations'
-import Analytics from './Analytics'
-import UpdatePrice from './UpdatePrice'
-import MonthlySales from './MonthlySales'
-import YearEndReport from './YearEndReport'
-import TankRevolving from './TankRevolving'
-import AdminHome from './AdminHome'
-import CustomerProfile from './CustomerProfile'
 import useWaitingOrders from '../lib/useWaitingOrders'
+
+// each page's code downloads only when it is first opened (a faster first load)
+const BranchView = lazy(() => import('./BranchView'))
+const ManageStaff = lazy(() => import('./ManageStaff'))
+const Recommendations = lazy(() => import('./Recommendations'))
+const Analytics = lazy(() => import('./Analytics'))
+const UpdatePrice = lazy(() => import('./UpdatePrice'))
+const MonthlySales = lazy(() => import('./MonthlySales'))
+const YearEndReport = lazy(() => import('./YearEndReport'))
+const TankRevolving = lazy(() => import('./TankRevolving'))
+const AdminHome = lazy(() => import('./AdminHome'))
+const CustomerProfile = lazy(() => import('./CustomerProfile'))
 
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
@@ -24,7 +26,11 @@ export default function Admin() {
   const waiting = useWaitingOrders(null) // website orders waiting, every branch
 
   if (view === 'updateprice') {
-    return <UpdatePrice branch={ADMIN_BRANCH} onBack={() => setView('main')} />
+    return (
+      <Suspense fallback={<p className="m-4 text-[14px] text-gray-500">Loading...</p>}>
+        <UpdatePrice branch={ADMIN_BRANCH} onBack={() => setView('main')} />
+      </Suspense>
+    )
   }
 
   // clicking Branches from another page starts at Overall

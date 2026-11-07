@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { confirmDialog } from './Confirm'
 
@@ -220,7 +220,8 @@ export default function StaffLayout({
         </aside>
 
         <main className="min-w-0 flex-1 overflow-y-auto bg-white p-6 text-left max-[900px]:px-4">
-          {children}
+          {/* a page's code loads the first time it is opened: a short "Loading..." meanwhile */}
+          <Suspense fallback={<p className="m-0 text-[14px] text-gray-500">Loading...</p>}>{children}</Suspense>
         </main>
       </div>
     </div>

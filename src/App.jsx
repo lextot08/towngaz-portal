@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { confirmDialog } from './components/Confirm'
 import Login from './pages/Login'
-import Admin from './pages/Admin'
-import Staff from './pages/Staff'
+
+// each page's code downloads only when it is first opened (a faster first load)
+const Admin = lazy(() => import('./pages/Admin'))
+const Staff = lazy(() => import('./pages/Staff'))
 
 const WEBSITE_URL = 'http://localhost:5173/' // address of the customer website
 
@@ -87,13 +89,23 @@ export default function App() {
     )
   }
 
-  if (profile.role === 'admin') return <Admin user={session.user} />
+  if (profile.role === 'admin') {
+    return (
+      <Suspense fallback={<p className="m-4 text-[14px] text-gray-500">Loading...</p>}>
+        <Admin user={session.user} />
+      </Suspense>
+    )
+  }
 
   if (profile.role === 'staff') {
     if (!profile.branch) {
       return <StatusScreen title="No branch assigned" text="Please contact the admin." />
     }
-    return <Staff branch={profile.branch} fullName={profile.full_name} />
+    return (
+      <Suspense fallback={<p className="m-4 text-[14px] text-gray-500">Loading...</p>}>
+        <Staff branch={profile.branch} fullName={profile.full_name} />
+      </Suspense>
+    )
   }
 
   return (

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { contactError, filterContact } from '../lib/accountRules'
+import { loadBranchOrders, dayStart } from '../lib/branchOrders'
 import { confirmDialog } from '../components/Confirm'
 import { branchName } from '../lib/branches'
 import { dateString, todayString, localDateString } from '../lib/dateUtils'
@@ -122,7 +123,7 @@ const ROW_INPUT = 'box-border block w-full min-w-0 p-1.5 text-[13px]'
 const WIDTHS_VIEW = { time: 6, name: 12, contact: 9, address: 10, unit: 7, amount: 9, remarks: 8, utang: 7, other: 6, order: 6 }
 const WIDTHS_SELECT = { time: 6, name: 11, contact: 8, address: 9, unit: 7, amount: 9, remarks: 7, utang: 7, other: 6, order: 6, select: 4 }
 
-// Other Income: a temporary column after Remark (extra money from another source, typed like the
+// Other Income: a column after Remark (money received that is not from tanks sold, typed like the
 // Expenses and added to the Gross of the reports). Set to false to hide it again.
 const SHOW_OTHER_INCOME = true
 
@@ -160,8 +161,7 @@ function GrowBox({ value, onChange, placeholder, onKeyDown, ...rest }) {
 // canEdit = true shows Add order / Accept / Edit / Delete (staff, and the admin on Caloocan).
 export default function SalesReport({
   branch,
-  orders,
-  reload, // reloads the orders in the page that owns them
+  reload, // also refreshes the page that holds it (Staff Home numbers, the sidebar count)
   canEdit = false,
   headerLeft = null, // replaces the title on the left of the top row
   showRefresh = false,
@@ -189,6 +189,26 @@ export default function SalesReport({
   const [seenIds, setSeenIds] = useState(loadSeen) // website orders already clicked
   const [message, setMessage] = useState('')
   usePopupMessage(message) // a problem also pops up, so it is noticed right away
+  const [orders, setOrders] = useState([]) // the orders of the date shown (and the open website orders on today)
+
+  // Only the orders of the date shown are loaded (and, on today, the website orders still waiting
+  // or out for delivery), not every order of the branch, so the log stays fast over the months.
+  const shownDay = reportDate || todayString()
+  const loadOrders = async () => {
+    const isToday = shownDay === todayString()
+    const { data, error } = await loadBranchOrders(branch, dayStart(shownDay), dayStart(shownDay, 1), isToday)
+    if (error) setMessage(error.message)
+    else setOrders(data)
+  }
+  // this log, and the page that holds it
+  const refresh = async () => {
+    await loadOrders()
+    if (reload) await reload()
+  }
+
+  useEffect(() => {
+    loadOrders()
+  }, [branch, shownDay])
 
   // The sizes are needed for the columns. The stock (with the price) is only needed for editing.
   const loadExtra = async () => {
@@ -227,19 +247,19 @@ export default function SalesReport({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `branch=eq.${branch}` },
-        () => reload()
+        () => refresh()
       )
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [branch])
+  }, [branch, shownDay])
 
   const callFunction = async (name, args) => {
     setMessage('')
     const { error } = await supabase.rpc(name, args)
     if (error) setMessage(error.message)
-    await reload()
+    await refresh()
     await loadExtra()
     return !error
   }
@@ -341,7 +361,7 @@ export default function SalesReport({
       setSeenIds(next)
       saveSeen(next)
     }
-    await reload()
+    await refresh()
     await loadExtra()
     setAcceptingKeys((keys) => keys.filter((k) => k !== g.key))
     if (failed) setMessage(`The order could not be ${accept ? 'accepted' : 'rejected'}: ${failed.message}`)
@@ -598,7 +618,7 @@ export default function SalesReport({
       .select('id')
     if (error) setMessage(error.message)
     else if (data.length === 0) setMessage('You are not allowed to change the customer type')
-    await reload()
+    await refresh()
     return !error && data.length > 0
   }
 
@@ -722,7 +742,7 @@ export default function SalesReport({
             onChange={(v) => setReportDate(!v || v === todayString() ? '' : v)}
           />
           <button className={OUTLINE} onClick={() => setReportDate('')}>Today</button>
-          {showRefresh && <button className={OUTLINE} onClick={reload}>Refresh</button>}
+          {showRefresh && <button className={OUTLINE} onClick={refresh}>Refresh</button>}
           {!newRow && !selecting && (
             <DownloadButtons
               getTable={() => tableRef.current}

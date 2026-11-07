@@ -1,8 +1,9 @@
-// Tanks Count (draft), at the end of a day (nothing in the Stock Inventory is changed):
+// Tanks Count, at the end of a day (nothing in the Stock Inventory is changed):
 //   REVOLVING F = the FILLED Actual Count of the Stock Inventory (its Ending on a day not counted yet)
 //   REVOLVING E = the EMPTIES Actual Count of the Stock Inventory
-//   BORROWED  E = the empties still owed by customers who bought a filled tank without giving
-//                 an empty (Remark "Borrowed" minus the returned ones); its F is always empty
+//   BORROWED  E = the tanks still with customers at the end of the day: every tank marked Borrowed
+//                 up to that day, minus the ones returned by then (not only that day's); its F is
+//                 always empty. So Revolving (F + E) + Borrowed = all the tanks of the branch.
 // Used by the Tanks Count page and the Tanks Count tiles of the home pages.
 import { supabase } from './supabaseClient'
 import { fetchAll } from './fetchAll'

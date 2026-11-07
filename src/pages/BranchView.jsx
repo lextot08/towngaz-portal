@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
-import { fetchAll } from '../lib/fetchAll'
+import { useState } from 'react'
 import { branchName } from '../lib/branches'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
@@ -24,29 +22,7 @@ const PANEL =
 export default function BranchView({ branch, initialView = 'inventory' }) {
   const isOverall = branch === OVERALL
   const [view, setView] = useState(initialView) // inventory | report (the log) | dailyreport
-  const [orders, setOrders] = useState([])
   const [date, setDate] = useState('') // '' means today, shared by both views
-  const [message, setMessage] = useState('')
-
-  const load = async () => {
-    if (isOverall) return // Overall loads its own sales summary
-    setMessage('')
-    const ordersResult = await fetchAll(() =>
-      supabase
-        .from('orders')
-        .select('*')
-        .eq('branch', branch)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-    )
-    if (ordersResult.error) setMessage(ordersResult.error.message)
-    else setOrders(ordersResult.data)
-  }
-
-  useEffect(() => {
-    setOrders([])
-    load()
-  }, [branch])
 
   const currentView = view
 
@@ -111,11 +87,8 @@ export default function BranchView({ branch, initialView = 'inventory' }) {
 
   return (
     <div>
-      {message && <p className="mt-0">{message}</p>}
       <SalesReport
         branch={branch}
-        orders={orders}
-        reload={load}
         canEdit={branch === ADMIN_BRANCH}
         isAdmin
         headerLeft={headerLeft}

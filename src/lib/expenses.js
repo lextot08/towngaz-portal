@@ -23,8 +23,8 @@ const sumOfText = (orders, field) => {
 // the expenses of a list of orders (the Expenses column)
 export const expensesOfOrders = (orders) => sumOfText(orders, 'remarks')
 
-// the Other Income of a list of orders (temporary column of the Daily Sales Log: extra money
-// from another source). gcash: true = only the Gcash ones, false = only the Cash ones (added to
+// the Other Income of a list of orders (column of the Daily Sales Log: money received that is not
+// from tanks sold). gcash: true = only the Gcash ones, false = only the Cash ones (added to
 // the Gross), left out = all of them.
 export const otherIncomeOfOrders = (orders, gcash) =>
   sumOfText(

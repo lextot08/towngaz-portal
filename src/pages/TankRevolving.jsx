@@ -29,7 +29,7 @@ const sum = (list) => {
 // Tanks Count: the REVOLVING tanks (filled F and empties E at each branch) on top, the BORROWED
 // tanks below, and the OVERALL TOTAL (revolving + borrowed) per size = the tanks count.
 // Staff pass their own branch (only its row is shown); the admin sees every branch.
-// DRAFT calculation, at the end of the chosen day: see src/lib/tankCount.js
+// The numbers at the end of the chosen day: see src/lib/tankCount.js
 export default function TankRevolving({ branch: ownBranch }) {
   const [date, setDate] = useState('') // '' means today
   const [sizes, setSizes] = useState([])
@@ -114,12 +114,7 @@ export default function TankRevolving({ branch: ownBranch }) {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="m-0 text-2xl">
-            Tanks Count{' '}
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 align-middle text-[12px] font-semibold text-amber-800">
-              Draft
-            </span>
-          </h1>
+          <h1 className="m-0 text-2xl">Tanks Count</h1>
           <p className="m-0 text-[14px] text-gray-500">
             {ownBranch ? branchName(ownBranch) : 'All branches'} · {longDate(shownDate)}
           </p>
