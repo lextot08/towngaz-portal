@@ -1,13 +1,11 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { confirmDialog } from './components/Confirm'
-import Login from './pages/Login'
+import Login, { WEBSITE_URL } from './pages/Login'
 
 // each page's code downloads only when it is first opened (a faster first load)
 const Admin = lazy(() => import('./pages/Admin'))
 const Staff = lazy(() => import('./pages/Staff'))
-
-const WEBSITE_URL = 'http://localhost:5173/' // address of the customer website
 
 function StatusScreen({ title, text, link }) {
   return (

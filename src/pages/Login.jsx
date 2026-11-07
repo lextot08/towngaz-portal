@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { EMAIL_DOMAIN } from '../lib/accountRules'
+import { alertDialog } from '../components/Confirm'
+
+export const WEBSITE_URL = 'https://towngaz-web.vercel.app/' // the customer website
 
 const GREEN = '#0b4436' // the panel and the buttons
 const RED = '#d4111b' // the stripe along the wave
@@ -153,6 +156,24 @@ export default function Login({ onCheckingChange = () => {} }) {
       .select('role, branch')
       .eq('id', data.user.id)
       .maybeSingle()
+    // a customer account: log out and point them to the customer website (stay on this page)
+    if (profile?.role === 'customer') {
+      await supabase.auth.signOut()
+      setLoading(false)
+      onCheckingChange(false)
+      await alertDialog(
+        <>
+          Customer accounts cannot log in to the staff portal. Please order on the Towngaz website:
+          <br />
+          <a href={WEBSITE_URL} target="_blank" rel="noreferrer" className="font-semibold break-all">
+            towngaz-web.vercel.app
+          </a>
+        </>,
+        'This is the staff portal'
+      )
+      return
+    }
+
     const problem = loginProblem(profile)
     if (problem) {
       await supabase.auth.signOut()
