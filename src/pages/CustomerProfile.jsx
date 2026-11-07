@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { BRANCHES, branchName } from '../lib/branches'
 import { filterContact, contactError, filterName, nameError } from '../lib/accountRules'
@@ -51,19 +52,24 @@ export default function CustomerProfile({ branch: ownBranch }) {
   const load = async () => {
     setMessage('')
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
-    let ordersQuery = supabase
-      .from('orders')
-      .select(
-        'id, group_id, branch, item_name, quantity, unit_price, discount, borrowed_tank, borrowed_qty, utang_status, paid_gcash, delivery_status, status, customer_id, customer_name, customer_address, customer_contact, created_at, accepted_at'
-      )
-      .in('status', ['pending', 'accepted'])
-      .order('created_at', { ascending: true })
-    let profilesQuery = supabase.from('customer_profiles').select('*').order('full_name')
-    if (branch !== OVERALL) {
-      ordersQuery = ordersQuery.eq('branch', branch)
-      profilesQuery = profilesQuery.eq('branch', branch)
+    const ordersQuery = () => {
+      let q = supabase
+        .from('orders')
+        .select(
+          'id, group_id, branch, item_name, quantity, unit_price, discount, borrowed_tank, borrowed_qty, utang_status, paid_gcash, delivery_status, status, customer_id, customer_name, customer_address, customer_contact, created_at, accepted_at'
+        )
+        .in('status', ['pending', 'accepted'])
+        .order('created_at', { ascending: true })
+        .order('id')
+      if (branch !== OVERALL) q = q.eq('branch', branch)
+      return q
     }
-    const [ordersResult, profilesResult] = await Promise.all([ordersQuery, profilesQuery])
+    const profilesQuery = () => {
+      let q = supabase.from('customer_profiles').select('*').order('full_name').order('id')
+      if (branch !== OVERALL) q = q.eq('branch', branch)
+      return q
+    }
+    const [ordersResult, profilesResult] = await Promise.all([fetchAll(ordersQuery), fetchAll(profilesQuery)])
 
     const error = sizesResult.error || ordersResult.error || profilesResult.error
     if (error) {

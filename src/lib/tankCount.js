@@ -5,6 +5,7 @@
 //                 an empty (Remark "Borrowed" minus the returned ones); its F is always empty
 // Used by the Tanks Count page and the Tanks Count tiles of the home pages.
 import { supabase } from './supabaseClient'
+import { fetchAll } from './fetchAll'
 import { BRANCHES } from './branches'
 import { borrowedOf } from './utang'
 
@@ -33,21 +34,27 @@ export async function loadTankCounts(day, branchIds, ownBranch) {
   ])
 
   // borrowed tanks given out until the end of the day, and the ones returned by then
-  let ordersQuery = supabase
-    .from('orders')
-    .select('id, branch, item_name, quantity, borrowed_tank, borrowed_qty')
-    .eq('borrowed_tank', true)
-    .eq('status', 'accepted')
-    .lt('accepted_at', to.toISOString())
-  let returnsQuery = supabase
-    .from('tank_returns')
-    .select('order_id, quantity')
-    .lt('returned_at', to.toISOString())
-  if (ownBranch) {
-    ordersQuery = ordersQuery.eq('branch', ownBranch)
-    returnsQuery = returnsQuery.eq('branch', ownBranch)
+  const ordersQuery = () => {
+    let q = supabase
+      .from('orders')
+      .select('id, branch, item_name, quantity, borrowed_tank, borrowed_qty')
+      .eq('borrowed_tank', true)
+      .eq('status', 'accepted')
+      .lt('accepted_at', to.toISOString())
+      .order('id')
+    if (ownBranch) q = q.eq('branch', ownBranch)
+    return q
   }
-  const [ordersResult, returnsResult] = await Promise.all([ordersQuery, returnsQuery])
+  const returnsQuery = () => {
+    let q = supabase
+      .from('tank_returns')
+      .select('order_id, quantity')
+      .lt('returned_at', to.toISOString())
+      .order('id')
+    if (ownBranch) q = q.eq('branch', ownBranch)
+    return q
+  }
+  const [ordersResult, returnsResult] = await Promise.all([fetchAll(ordersQuery), fetchAll(returnsQuery)])
 
   const failed = [...filled, ...empties, ordersResult, returnsResult].find((x) => x.error)
 

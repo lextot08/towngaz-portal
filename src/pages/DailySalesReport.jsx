@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { branchName } from '../lib/branches'
 import { dateString, localDateString, todayString } from '../lib/dateUtils'
@@ -49,25 +50,33 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
     const to = new Date(from)
     to.setMonth(to.getMonth() + 1)
 
-    let ordersQuery = supabase
-      .from('orders')
-      .select('*')
-      .eq('status', 'accepted')
-      .gte('accepted_at', from.toISOString())
-      .lt('accepted_at', to.toISOString())
-    let entriesQuery = supabase
-      .from('daily_entries')
-      .select('day, branch, key, amount')
-      .gte('day', `${month}-01`)
-      .lt('day', dateString(to))
-    if (branch) {
-      ordersQuery = ordersQuery.eq('branch', branch)
-      entriesQuery = entriesQuery.eq('branch', branch)
+    const ordersQuery = () => {
+      let q = supabase
+        .from('orders')
+        .select('*')
+        .eq('status', 'accepted')
+        .gte('accepted_at', from.toISOString())
+        .lt('accepted_at', to.toISOString())
+        .order('id')
+      if (branch) q = q.eq('branch', branch)
+      return q
+    }
+    const entriesQuery = () => {
+      let q = supabase
+        .from('daily_entries')
+        .select('day, branch, key, amount')
+        .gte('day', `${month}-01`)
+        .lt('day', dateString(to))
+        .order('day')
+        .order('branch')
+        .order('key')
+      if (branch) q = q.eq('branch', branch)
+      return q
     }
     const [sizesResult, ordersResult, entriesResult] = await Promise.all([
       supabase.from('lpg_prices').select('size').order('sort_order'),
-      ordersQuery,
-      entriesQuery,
+      fetchAll(ordersQuery),
+      fetchAll(entriesQuery),
     ])
 
     const error = sizesResult.error || ordersResult.error

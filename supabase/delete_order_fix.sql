@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION public.delete_order(p_order_id bigint)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public'3
+ SET search_path TO 'public'
 AS $function$
 declare
   my_branch smallint := public.staff_branch();

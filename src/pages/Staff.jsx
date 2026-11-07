@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import StaffLayout from '../components/StaffLayout'
 import UpdatePrice from './UpdatePrice'
 import InventoryTable from './InventoryTable'
@@ -21,11 +22,14 @@ export default function Staff({ branch, fullName }) {
   const waiting = useWaitingOrders(branch) // website orders waiting for Accept / Reject
 
   const loadAll = async () => {
-    const ordersResult = await supabase
-      .from('orders')
-      .select('*')
-      .eq('branch', branch)
-      .order('created_at', { ascending: false })
+    const ordersResult = await fetchAll(() =>
+      supabase
+        .from('orders')
+        .select('*')
+        .eq('branch', branch)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+    )
     if (ordersResult.error) setMessage(ordersResult.error.message)
     else setOrders(ordersResult.data)
   }

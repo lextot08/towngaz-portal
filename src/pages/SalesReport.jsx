@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { contactError, filterContact } from '../lib/accountRules'
 import { confirmDialog } from '../components/Confirm'
 import { branchName } from '../lib/branches'
-import { todayString, localDateString } from '../lib/dateUtils'
+import { dateString, todayString, localDateString } from '../lib/dateUtils'
 import { peso } from '../lib/money'
 import { REMARKS, remarksOf } from '../lib/utang'
 import { expenseOf, expensesOfOrders, otherIncomeOfOrders } from '../lib/expenses'
@@ -124,6 +125,9 @@ const WIDTHS_SELECT = { time: 6, name: 11, contact: 8, address: 9, unit: 7, amou
 // Other Income: a temporary column after Remark (extra money from another source, typed like the
 // Expenses and added to the Gross of the reports). Set to false to hide it again.
 const SHOW_OTHER_INCOME = true
+
+// how many days back the staff can add an order (the admin: any day)
+const BACKDATE_DAYS = 7
 const SIZES_SHARE = 20
 
 // A text box that gets taller when the text is long, so the table keeps its size
@@ -164,6 +168,7 @@ export default function SalesReport({
   date: dateProp, // the admin page controls the date, the staff page does not
   onDateChange,
   tableClass, // lets the admin page give the table a fixed size
+  isAdmin = false, // the admin can add orders on any past day; the staff up to 7 days back
 }) {
   const [ownDate, setOwnDate] = useState('')
   const tableRef = useRef(null) // for the download
@@ -345,9 +350,16 @@ export default function SalesReport({
   // ---- Add order: an empty row at the top of the table ----
   const startNewRow = () => {
     setMessage('')
+    // the staff can add orders up to 7 days back (to catch up on a day the system was not used)
+    const oldest = new Date()
+    oldest.setDate(oldest.getDate() - BACKDATE_DAYS)
+    if (!isAdmin && shownDate < dateString(oldest)) {
+      setMessage(`Orders can only be added up to ${BACKDATE_DAYS} days back. Ask the admin to add older orders.`)
+      return
+    }
     setCell(null)
     stopDelete()
-    // the order is for the day shown: now, or this time of day on a past day (for testing)
+    // the order is for the day shown: now, or this time of day on a past day
     const now = new Date()
     const time = shownDate === todayString() ? now : new Date(`${shownDate}T${now.toTimeString().slice(0, 8)}`)
     setNewRow({
@@ -444,10 +456,9 @@ export default function SalesReport({
     const name = r.name.trim()
     const contact = r.contact.trim()
     const digits = (text) => String(text || '').replace(/\D/g, '')
-    const { data, error } = await supabase
-      .from('customer_profiles')
-      .select('full_name, contact')
-      .eq('branch', branch)
+    const { data, error } = await fetchAll(() =>
+      supabase.from('customer_profiles').select('full_name, contact').eq('branch', branch).order('id')
+    )
     if (error) return // the order is saved; the profile can still be added by hand
     const known = data.some(
       (p) =>

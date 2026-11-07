@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { branchName } from '../lib/branches'
 import InventoryTable from './InventoryTable'
 import SalesReport from './SalesReport'
@@ -7,7 +8,7 @@ import OverallSales from './OverallSales'
 import DailySalesReport from './DailySalesReport'
 
 const OVERALL = 0 // "Overall": the total of all branches (view only)
-// The admin edits the Stock Inventory and the Daily Sales Report of every branch, and the Daily Sales Log of Caloocan
+// The admin edits the Stock Inventory, the Daily Sales Log and the Daily Sales Report of Caloocan
 // (the main branch) only.
 const ADMIN_BRANCH = 1
 
@@ -30,11 +31,14 @@ export default function BranchView({ branch, initialView = 'inventory' }) {
   const load = async () => {
     if (isOverall) return // Overall loads its own sales summary
     setMessage('')
-    const ordersResult = await supabase
-      .from('orders')
-      .select('*')
-      .eq('branch', branch)
-      .order('created_at', { ascending: false })
+    const ordersResult = await fetchAll(() =>
+      supabase
+        .from('orders')
+        .select('*')
+        .eq('branch', branch)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+    )
     if (ordersResult.error) setMessage(ordersResult.error.message)
     else setOrders(ordersResult.data)
   }
@@ -73,7 +77,7 @@ export default function BranchView({ branch, initialView = 'inventory' }) {
     return (
       <DailySalesReport
         branch={isOverall ? null : branch}
-        canEdit={!isOverall}
+        canEdit={branch === ADMIN_BRANCH}
         headerLeft={headerLeft}
         tableClass={PANEL}
       />
@@ -96,7 +100,7 @@ export default function BranchView({ branch, initialView = 'inventory' }) {
       <InventoryTable
         branch={branch}
         overall={isOverall}
-        canEdit={!isOverall}
+        canEdit={branch === ADMIN_BRANCH}
         headerLeft={headerLeft}
         date={date}
         onDateChange={setDate}
@@ -113,6 +117,7 @@ export default function BranchView({ branch, initialView = 'inventory' }) {
         orders={orders}
         reload={load}
         canEdit={branch === ADMIN_BRANCH}
+        isAdmin
         headerLeft={headerLeft}
         showRefresh
         date={date}

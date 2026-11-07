@@ -89,15 +89,17 @@ const sumEntries = (entries, key) =>
   BRANCHES.reduce((sum, b) => sum + (entryOf(entries, b.id, key) || 0), 0)
 
 // ---- Page 1: income summary ----
-export function IncomeSummary({ orders, entries, canEdit, onSave }) {
+// company = false (staff): without the company numbers (Nawa / Unwind, BIVMC Purchases)
+export function IncomeSummary({ orders, entries, canEdit, onSave, company = true }) {
   const gross = sumAmount(orders.filter(isGross)) + otherIncomeOfOrders(orders, false)
   const gcash = sumAmount(orders.filter(isGcash)) + otherIncomeOfOrders(orders, true) + sumEntries(entries, 'gcash')
   const benta = sumEntries(entries, 'benta')
   const add = sumEntries(entries, 'add')
   const utang = sumAmount(orders.filter(isUtang)) // collectibles of the branches
-  const nawa = entryOf(entries, 0, 'nawa')
+  const nawa = company ? entryOf(entries, 0, 'nawa') : null
   const expenses = expensesOfOrders(orders)
-  const purchases = entryOf(entries, 0, 'bivmc_purchases')
+  const purchases = company ? entryOf(entries, 0, 'bivmc_purchases') : null
+  const cols = company ? 7 : 6
 
   const collectibles = utang + (nawa || 0)
   const spent = expenses + (purchases || 0)
@@ -115,7 +117,7 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
             <th>Add Tanke</th>
             <th className="text-brand-red">Collectibles</th>
             <th className="text-brand-red">Expenses</th>
-            <th className="text-blue-700">BIVMC Purchases</th>
+            {company && <th className="text-blue-700">BIVMC Purchases</th>}
           </tr>
         </thead>
         <tbody>
@@ -125,25 +127,29 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
             <td>{peso(benta)}</td>
             <td>{peso(add)}</td>
             <td>
-              <span className={NOTE}>Branches (Utang)</span>
+              <span className={NOTE}>{company ? 'Branches (Utang)' : 'Utang'}</span>
               {peso(utang)}
-              <Entry
-                value={nawa}
-                canEdit={canEdit}
-                className="mt-3 block rounded py-1"
-                onSave={(v) => onSave(0, 'nawa', v)}
-              >
-                <span className={NOTE}>Nawa / Unwind</span>
-              </Entry>
+              {company && (
+                <Entry
+                  value={nawa}
+                  canEdit={canEdit}
+                  className="mt-3 block rounded py-1"
+                  onSave={(v) => onSave(0, 'nawa', v)}
+                >
+                  <span className={NOTE}>Nawa / Unwind</span>
+                </Entry>
+              )}
             </td>
             <td>{peso(expenses)}</td>
-            <Entry
-              as="td"
-              className=""
-              value={purchases}
-              canEdit={canEdit}
-              onSave={(v) => onSave(0, 'bivmc_purchases', v)}
-            />
+            {company && (
+              <Entry
+                as="td"
+                className=""
+                value={purchases}
+                canEdit={canEdit}
+                onSave={(v) => onSave(0, 'bivmc_purchases', v)}
+              />
+            )}
           </tr>
           {/* subtotals */}
           <tr className={SUBTOTAL}>
@@ -159,9 +165,9 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
               <span className={NUMBER}>{peso(collectibles)}</span>
               <span className={NOTE}>Total collectibles</span>
             </td>
-            <td colSpan={2}>
+            <td colSpan={company ? 2 : 1}>
               <span className={NUMBER}>{peso(spent)}</span>
-              <span className={NOTE}>Expenses + BIVMC Purchases</span>
+              <span className={NOTE}>{company ? 'Expenses + BIVMC Purchases' : 'Total expenses'}</span>
             </td>
           </tr>
           <tr className={SUBTOTAL}>
@@ -169,9 +175,9 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
               <span className={NUMBER}>{peso(actualGross)}</span>
               <span className={`${NOTE} !text-brand-red`}>Actual total gross income</span>
             </td>
-            <td colSpan={3} rowSpan={2}>
+            <td colSpan={cols - 4} rowSpan={2}>
               <span className={NUMBER}>{peso(spent)}</span>
-              <span className={NOTE}>Total expenses &amp; purchases</span>
+              <span className={NOTE}>{company ? 'Total expenses & purchases' : 'Total expenses'}</span>
             </td>
           </tr>
           <tr className={SUBTOTAL}>
@@ -184,9 +190,9 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
           </tr>
           {/* net income */}
           <tr>
-            <td colSpan={7} className="py-4">
+            <td colSpan={cols} className="py-4">
               <span className="block text-[14px] font-medium">
-                Total Gross Income − Total Expenses &amp; Purchases
+                {company ? 'Total Gross Income − Total Expenses & Purchases' : 'Total Gross Income − Total Expenses'}
               </span>
               <span className="mt-3 block text-[18px] font-bold text-brand-pine">
                 {peso(actualGross - spent)}
@@ -206,8 +212,9 @@ export function IncomeSummary({ orders, entries, canEdit, onSave }) {
 // same order as Sales per Branch
 const TARGET_BRANCHES = BRANCHES
 
-export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave }) {
-  const rowCount = TARGET_BRANCHES.length
+// branches = the rows (the staff: their own branch); company = false hides the targets and Status
+export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave, branches = TARGET_BRANCHES, company = true }) {
+  const rowCount = branches.length
 
   // kg sold by a branch, and kg received by a branch (Incoming + Refill)
   const actualOf = (b) => kgOfOrders(orders.filter((o) => o.branch === b.id), sizes)
@@ -216,8 +223,8 @@ export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave
       .filter((r) => r.branch === b.id)
       .reduce((sum, r) => sum + r.quantity * kgOfSize(r.size), 0)
 
-  const totalActual = TARGET_BRANCHES.reduce((sum, b) => sum + actualOf(b), 0)
-  const totalReceived = TARGET_BRANCHES.reduce((sum, b) => sum + receivedOf(b), 0)
+  const totalActual = branches.reduce((sum, b) => sum + actualOf(b), 0)
+  const totalReceived = branches.reduce((sum, b) => sum + receivedOf(b), 0)
 
   // the targets (kg), and the highest one reached by the total actual volume
   const targets = ['t1', 't2', 't3'].map((key, i) => ({
@@ -243,17 +250,17 @@ export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave
               BIVMC Receipts
               <span className={NOTE}>Tanks volume (kg)</span>
             </th>
-            <th className="text-violet-700">Target Volume Count</th>
-            <th>Status</th>
+            {company && <th className="text-violet-700">Target Volume Count</th>}
+            {company && <th>Status</th>}
           </tr>
         </thead>
         <tbody>
-          {TARGET_BRANCHES.map((b, i) => (
+          {branches.map((b, i) => (
               <tr key={b.id}>
                 <td className={LABEL}>{b.name}</td>
                 <td>{kgText(actualOf(b))}</td>
                 <td>{kgText(receivedOf(b))}</td>
-                {i === 0 && (
+                {company && i === 0 && (
                   <>
                     <td rowSpan={rowCount} className="!align-top">
                       {targets.map((t) => (
@@ -301,7 +308,7 @@ export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave
               {kgText(totalReceived)}
               <span className={NOTE}>{tonsText(totalReceived)}</span>
             </td>
-            <td></td>
+            {company && <td></td>}
           </tr>
         </tbody>
       </table>
@@ -313,7 +320,8 @@ export function VolumeTarget({ orders, sizes, receipts, entries, canEdit, onSave
 // same order as Sales per Branch
 const VOLUME_BRANCHES = BRANCHES
 
-export function TanksVolume({ orders, sizes }) {
+// branches = the rows (the staff: their own branch)
+export function TanksVolume({ orders, sizes, branches = VOLUME_BRANCHES }) {
   const sizeList = sizes.length > 0 ? sizes : ['']
   const countText = (n) => (n > 0 ? n.toLocaleString('en-PH') : '-')
   const totalKg = kgOfOrders(orders, sizes)
@@ -338,7 +346,7 @@ export function TanksVolume({ orders, sizes }) {
           </tr>
         </thead>
         <tbody>
-          {VOLUME_BRANCHES.map((b) => {
+          {branches.map((b) => {
             const list = orders.filter((o) => o.branch === b.id)
             return (
               <tr key={b.id}>

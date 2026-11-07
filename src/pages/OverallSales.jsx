@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 import DateButton from '../components/DateButton'
@@ -26,12 +27,15 @@ export default function OverallSales({ headerLeft, date, onDateChange, tableClas
     to.setDate(to.getDate() + 1)
 
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
-    const ordersResult = await supabase
-      .from('orders')
-      .select('branch, item_name, quantity')
-      .eq('status', 'accepted')
-      .gte('accepted_at', from.toISOString())
-      .lt('accepted_at', to.toISOString())
+    const ordersResult = await fetchAll(() =>
+      supabase
+        .from('orders')
+        .select('branch, item_name, quantity')
+        .eq('status', 'accepted')
+        .gte('accepted_at', from.toISOString())
+        .lt('accepted_at', to.toISOString())
+        .order('id')
+    )
 
     const error = sizesResult.error || ordersResult.error
     if (error) {

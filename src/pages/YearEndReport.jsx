@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES, branchName } from '../lib/branches'
 import { localDateString } from '../lib/dateUtils'
 
@@ -46,14 +47,17 @@ export default function YearEndReport({ branch: ownBranch }) {
     const to = new Date(year + 1, 0, 1)
 
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
-    let ordersQuery = supabase
-      .from('orders')
-      .select('branch, item_name, quantity, customer_type, accepted_at')
-      .eq('status', 'accepted')
-      .gte('accepted_at', from.toISOString())
-      .lt('accepted_at', to.toISOString())
-    if (branch !== OVERALL) ordersQuery = ordersQuery.eq('branch', branch)
-    const ordersResult = await ordersQuery
+    const ordersResult = await fetchAll(() => {
+      let q = supabase
+        .from('orders')
+        .select('branch, item_name, quantity, customer_type, accepted_at')
+        .eq('status', 'accepted')
+        .gte('accepted_at', from.toISOString())
+        .lt('accepted_at', to.toISOString())
+        .order('id')
+      if (branch !== OVERALL) q = q.eq('branch', branch)
+      return q
+    })
 
     const error = sizesResult.error || ordersResult.error
     if (error) {

@@ -14,6 +14,7 @@ import {
   LabelList,
 } from 'recharts'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { amountOf } from '../lib/monthly'
 import { branchName, BRANCHES } from '../lib/branches'
 import { localDateString, todayString } from '../lib/dateUtils'
@@ -249,11 +250,14 @@ export default function Analytics() {
   const loadOrders = async () => {
     setLoading(true)
     setMessage('')
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('status', 'accepted')
-      .order('accepted_at', { ascending: false })
+    const { data, error } = await fetchAll(() =>
+      supabase
+        .from('orders')
+        .select('*')
+        .eq('status', 'accepted')
+        .order('accepted_at', { ascending: false })
+        .order('id', { ascending: false })
+    )
     if (error) setMessage(error.message)
     else setOrders(data)
     setLoading(false)

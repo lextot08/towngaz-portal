@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { BRANCHES, branchName } from '../lib/branches'
 import { dateString, todayString } from '../lib/dateUtils'
@@ -30,7 +31,7 @@ const thisMonth = () => todayString().slice(0, 7)
 // typed day by day in the Daily Sales Report, added up here
 const DAILY_KEYS = ['deposit', 'benta', 'add', 'gcash']
 
-// the pages of the report (admin)
+// the pages of the report
 const SHEETS = [
   { key: 'branches', label: 'Sales per Branch' },
   { key: 'volume', label: 'Tanks Volume' },
@@ -63,14 +64,17 @@ export default function MonthlySales({ branch }) {
     to.setMonth(to.getMonth() + 1)
 
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
-    let ordersQuery = supabase
-      .from('orders')
-      .select('*')
-      .eq('status', 'accepted')
-      .gte('accepted_at', from.toISOString())
-      .lt('accepted_at', to.toISOString())
-    if (branch) ordersQuery = ordersQuery.eq('branch', branch)
-    const ordersResult = await ordersQuery
+    const ordersResult = await fetchAll(() => {
+      let q = supabase
+        .from('orders')
+        .select('*')
+        .eq('status', 'accepted')
+        .gte('accepted_at', from.toISOString())
+        .lt('accepted_at', to.toISOString())
+        .order('id')
+      if (branch) q = q.eq('branch', branch)
+      return q
+    })
 
     const error = sizesResult.error || ordersResult.error
     if (error) {
@@ -86,17 +90,21 @@ export default function MonthlySales({ branch }) {
       .from('monthly_entries')
       .select('branch, key, amount')
       .eq('month', `${month}-01`)
-    let dailyQuery = supabase
-      .from('daily_entries')
-      .select('branch, key, amount')
-      .in('key', DAILY_KEYS)
-      .gte('day', `${month}-01`)
-      .lt('day', dateString(to))
-    if (branch) dailyQuery = dailyQuery.eq('branch', branch)
-    const dailyResult = await dailyQuery
-    const receiptsResult = isAdmin
-      ? await supabase.rpc('monthly_receipts', { p_from: from.toISOString(), p_to: to.toISOString() })
-      : { data: [] }
+    const dailyResult = await fetchAll(() => {
+      let q = supabase
+        .from('daily_entries')
+        .select('branch, key, amount')
+        .in('key', DAILY_KEYS)
+        .gte('day', `${month}-01`)
+        .lt('day', dateString(to))
+        .order('day')
+        .order('branch')
+        .order('key')
+      if (branch) q = q.eq('branch', branch)
+      return q
+    })
+    // the filled tanks received (the staff: their own branch; needs supabase/staff_monthly_receipts.sql)
+    const receiptsResult = await supabase.rpc('monthly_receipts', { p_from: from.toISOString(), p_to: to.toISOString() })
     const failed = entriesResult.error || receiptsResult.error || dailyResult.error
     if (failed) setMessage(`Some numbers could not be loaded: ${failed.message}`)
     // the admin's typed numbers, then Deposit, Benta Tanke and Add Tanke from the days
@@ -206,47 +214,47 @@ export default function MonthlySales({ branch }) {
           <button className={OUTLINE} onClick={load}>Refresh</button>
           <DownloadButtons
             getTable={() => tableArea.current?.querySelector('table')}
-            title={`Monthly Sales Report - ${SHEETS.find((p) => p.key === (isAdmin ? sheet : 'branches')).label}`}
+            title={`Monthly Sales Report - ${SHEETS.find((p) => p.key === sheet).label}`}
             subtitle={`${branch ? branchName(branch) : 'All branches'} · ${monthText(month)}`}
-            filename={`Monthly Sales Report - ${SHEETS.find((p) => p.key === (isAdmin ? sheet : 'branches')).label} - ${branch ? branchName(branch) + ' - ' : ''}${month}`}
+            filename={`Monthly Sales Report - ${SHEETS.find((p) => p.key === sheet).label} - ${branch ? branchName(branch) + ' - ' : ''}${month}`}
           />
         </div>
       </div>
 
       {message && <p className="mt-0">{message}</p>}
 
-      {/* the pages of the report (admin): the branches, then the pages of the paper report */}
-      {isAdmin && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {SHEETS.map((p) => (
-            <button
-              key={p.key}
-              className={sheet === p.key ? SOLID : OUTLINE}
-              onClick={() => setSheet(p.key)}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* the pages of the report: the branches, then the pages of the paper report */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {SHEETS.map((p) => (
+          <button
+            key={p.key}
+            className={sheet === p.key ? SOLID : OUTLINE}
+            onClick={() => setSheet(p.key)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       <div ref={tableArea}>
-      {isAdmin && sheet === 'income' && (
-        <IncomeSummary orders={orders} entries={entries} canEdit onSave={saveEntry} />
+      {sheet === 'income' && (
+        <IncomeSummary orders={orders} entries={entries} canEdit={isAdmin} onSave={saveEntry} company={isAdmin} />
       )}
-      {isAdmin && sheet === 'target' && (
+      {sheet === 'target' && (
         <VolumeTarget
+          branches={shownBranches}
+          company={isAdmin}
           orders={orders}
           sizes={sizes}
           receipts={receipts}
           entries={entries}
-          canEdit
+          canEdit={isAdmin}
           onSave={saveEntry}
         />
       )}
-      {isAdmin && sheet === 'volume' && <TanksVolume orders={orders} sizes={sizes} />}
+      {sheet === 'volume' && <TanksVolume orders={orders} sizes={sizes} branches={shownBranches} />}
 
-      {(branch || sheet === 'branches') && (
+      {sheet === 'branches' && (
         <>
         <div className={PANEL}>
           <table className="w-full min-w-[1000px]">

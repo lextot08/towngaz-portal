@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import usePopupMessage from '../lib/usePopupMessage'
 import { borrowedOf } from '../lib/utang'
 import { BRANCHES, branchName } from '../lib/branches'
@@ -62,20 +63,25 @@ export default function TankBorrowed({ branch: ownBranch }) {
   const load = async () => {
     setMessage('')
     const sizesResult = await supabase.from('lpg_prices').select('size').order('sort_order')
-    let ordersQuery = supabase
-      .from('orders')
-      .select(
-        'id, group_id, branch, item_name, quantity, borrowed_qty, customer_name, customer_contact, customer_address, borrowed_tank, created_at, accepted_at'
-      )
-      .eq('borrowed_tank', true)
-      .in('status', ['pending', 'accepted'])
-      .order('created_at', { ascending: false })
-    let returnsQuery = supabase.from('tank_returns').select('id, order_id, quantity, returned_at')
-    if (branch !== OVERALL) {
-      ordersQuery = ordersQuery.eq('branch', branch)
-      returnsQuery = returnsQuery.eq('branch', branch)
+    const ordersQuery = () => {
+      let q = supabase
+        .from('orders')
+        .select(
+          'id, group_id, branch, item_name, quantity, borrowed_qty, customer_name, customer_contact, customer_address, borrowed_tank, created_at, accepted_at'
+        )
+        .eq('borrowed_tank', true)
+        .in('status', ['pending', 'accepted'])
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+      if (branch !== OVERALL) q = q.eq('branch', branch)
+      return q
     }
-    const [ordersResult, returnsResult] = await Promise.all([ordersQuery, returnsQuery])
+    const returnsQuery = () => {
+      let q = supabase.from('tank_returns').select('id, order_id, quantity, returned_at').order('id')
+      if (branch !== OVERALL) q = q.eq('branch', branch)
+      return q
+    }
+    const [ordersResult, returnsResult] = await Promise.all([fetchAll(ordersQuery), fetchAll(returnsQuery)])
 
     const error = sizesResult.error || ordersResult.error || returnsResult.error
     if (error) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { fetchAll } from '../lib/fetchAll'
 import { BRANCHES, branchName } from '../lib/branches'
 import { todayString } from '../lib/dateUtils'
 
@@ -51,17 +52,19 @@ export default function Recommendations({ mode, branch }) {
     const sizesResult = await supabase.from('lpg_prices').select('*').order('sort_order')
 
     let stockQuery = supabase.from('stock').select('branch, item_name, quantity')
-    let ordersQuery = supabase
-      .from('orders')
-      .select('branch, item_name, quantity, accepted_at')
-      .eq('status', 'accepted')
-      .gte('accepted_at', weekStart.toISOString())
-    if (!isAdmin) {
-      stockQuery = stockQuery.eq('branch', branch)
-      ordersQuery = ordersQuery.eq('branch', branch)
+    const ordersQuery = () => {
+      let q = supabase
+        .from('orders')
+        .select('branch, item_name, quantity, accepted_at')
+        .eq('status', 'accepted')
+        .gte('accepted_at', weekStart.toISOString())
+        .order('id')
+      if (!isAdmin) q = q.eq('branch', branch)
+      return q
     }
+    if (!isAdmin) stockQuery = stockQuery.eq('branch', branch)
     const stockResult = await stockQuery
-    const ordersResult = await ordersQuery
+    const ordersResult = await fetchAll(ordersQuery)
 
     const error = sizesResult.error || stockResult.error || ordersResult.error
     if (error) {
