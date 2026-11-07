@@ -752,21 +752,6 @@ export default function SalesReport({
 
       {message && <p className="mt-0">{message}</p>}
 
-      <p className="mt-0 text-[14px]">
-        On today, website orders are shown first with a red outline and (!). Accept one in the Order column to
-        take it from the stock and send it out for delivery, or Reject it (the customer sees it as
-        cancelled). It stays on top until its Remark is set to Delivered.
-        {canEdit && (
-          <>
-            {' '}
-            Double-click a Customer name (to change the name or the type), a size (to change the
-            quantity or add a size to the order; 0 removes it), Amount (for the discount), Expenses,
-            Remark (Utang, Bayad Utang, Borrowed, Delivered, Thru Gcash){SHOW_OTHER_INCOME ? ', or Other Income (extra money: Cash is added to the Gross, Gcash to the Gcash)' : ''} cell to edit it. H = Household,
-            C = Commercial, RTO = Retail Outlet. Press Enter to save or Esc to cancel.
-          </>
-        )}
-      </p>
-
       <div
         className={
           tableClass ?? 'overflow-x-auto rounded-xl border border-(color:--border) bg-white'

@@ -107,3 +107,9 @@
   80% { transform: translateX(5px); }
   100% { transform: translateX(0); }
 }
+/* Edge adds its own "show password" eye (and a clear X) inside password boxes; the login page has
+   its own eye button, so the browser's is hidden to avoid two eyes */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}

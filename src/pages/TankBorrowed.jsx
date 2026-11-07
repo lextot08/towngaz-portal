@@ -349,13 +349,6 @@ export default function TankBorrowed({ branch: ownBranch }) {
           </tbody>
         </table>
       </div>
-
-      <p className="mt-3 mb-0 max-w-200 text-[13px] text-gray-600">
-        Orders marked &quot;Borrowed&quot; in the Daily Sales Log (the customer kept the tank).
-        Borrowed = the tanks still with the customer; Returned = the tanks given back. When a customer
-        returns tanks, search the name and click Return: on that day the branch&apos;s EMPTIES go up by
-        the same number.
-      </p>
     </div>
   )
 }

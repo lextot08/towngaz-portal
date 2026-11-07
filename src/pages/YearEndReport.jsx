@@ -172,11 +172,6 @@ export default function YearEndReport({ branch: ownBranch }) {
           </tfoot>
         </table>
       </div>
-
-      <p className="mt-4 mb-0 text-[14px] text-gray-600">
-        Each number is the kg of LPG sold (accepted orders): cylinders sold x the kg of the size, for
-        example 10 x 2.7kg = 27 kg. Total is Household + Commercial.
-      </p>
     </div>
   )
 }

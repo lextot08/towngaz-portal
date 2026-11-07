@@ -246,17 +246,6 @@ export default function MonthlySales({ branch }) {
       )}
       {isAdmin && sheet === 'volume' && <TanksVolume orders={orders} sizes={sizes} />}
 
-      {isAdmin && sheet !== 'branches' && (
-        <p className="mt-4 mb-0 text-[14px] text-gray-600">
-          {sheet === 'income' &&
-            'Gross Sales, Gcash and Expenses come from the Daily Sales Logs of the month; Benta Tanke and Add Tanke add up the days of the Daily Sales Reports. Collectibles of the branches = the orders marked Utang. Double-click Nawa / Unwind or BIVMC Purchases to type them.'}
-          {sheet === 'target' &&
-            'Actual = the kg sold by the branch in the month (cylinders x size). BIVMC Receipts = the kg of the filled tanks received (Incoming/Refill of the Stock Inventory). Double-click T1, T2 or T3 to type a target in kg; the Status compares the total actual kg with the targets.'}
-          {sheet === 'volume' &&
-            'Tanks Count = the cylinders sold in the month, per size. Tank Volume = the count x the kg of the size.'}
-        </p>
-      )}
-
       {(branch || sheet === 'branches') && (
         <>
         <div className={PANEL}>
@@ -307,16 +296,6 @@ export default function MonthlySales({ branch }) {
           </table>
         </div>
 
-        <p className="mt-4 mb-0 text-[14px] text-gray-600">
-          Gross Sale is the total amount (after discounts) of the orders from the 1st to the last day of{' '}
-          {monthText(month)}, without the ones marked Utang (money lent) or Thru Gcash, plus the Cash Other Income typed in the
-          Daily Sales Log (Gcash Other Income is in Gcash). Gcash is the
-          total of the orders marked Thru Gcash, plus the Gcash typed in the Daily Sales Report. Expenses is the sum of the numbers typed in the Expenses
-          column of the Daily Sales Log (for example &quot;gas 70 others 30&quot; = ₱100). Net =
-          Gross Sale - Expenses. Deposit, Benta Tanke and Add Tanke add up the days typed in the
-          Daily Sales Report of each branch. Tanks Count is the number of cylinders sold in the month,
-          per size.
-        </p>
         </>
       )}
       </div>

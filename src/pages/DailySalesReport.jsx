@@ -280,15 +280,6 @@ export default function DailySalesReport({ branch, canEdit = false, headerLeft =
           )}
         </table>
       </div>
-
-      <p className="mt-4 mb-0 max-w-200 text-[13px] text-gray-600">
-        Gross, Expenses, Gcash and the tanks sold come from the Daily Sales Log of each day (Gross
-        leaves out Utang and Thru Gcash, and adds the Cash Other Income; the Gcash Other Income is in Gcash). Net = Gross − Expenses.
-        {editable
-          ? ' Double-click Benta Tanke, DF (delivery fee), Deposit or Add Tanke to type the amount of that day, or Gcash to add Gcash received that is not in the log (for example an old debt paid through Gcash).'
-          : ' Benta Tanke, DF (delivery fee), Deposit and Add Tanke are typed by the staff of each branch.'}{' '}
-        The Monthly Sales Report adds up these days.
-      </p>
     </div>
   )
 }

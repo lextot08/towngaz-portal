@@ -100,10 +100,6 @@ export default function OverallSales({ headerLeft, date, onDateChange, tableClas
           </tfoot>
         </table>
       </div>
-
-      <p className="mt-4 mb-0 text-[14px] text-gray-600">
-        Cylinders sold on {shownDate} (accepted orders), by branch and size.
-      </p>
     </div>
   )
 }

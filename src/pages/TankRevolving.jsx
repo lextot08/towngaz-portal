@@ -190,14 +190,6 @@ export default function TankRevolving({ branch: ownBranch }) {
           </tbody>
         </table>
       </div>
-
-      <p className="mt-3 mb-0 max-w-200 text-[13px] text-gray-600">
-        F = filled, E = empties, at the end of the chosen day. Revolving F and E = the stock of filled and
-        empty tanks at the branch (the Actual Count of the FILLED and EMPTIES in the Stock Inventory).
-        Borrowed E = the empties still owed by customers who bought a filled tank without giving an
-        empty (orders with the Remark Borrowed, minus the ones returned); Borrowed F stays empty. Overall Total = the revolving
-        tanks (F + E) + the borrowed tanks of each size. This is a draft calculation.
-      </p>
     </div>
   )
 }

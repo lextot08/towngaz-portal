@@ -844,10 +844,12 @@ export default function InventoryTable({
                 { height: 'h-11' }
               )}
 
+              {/* Ending Inventory shows the same number as the Actual Count (Ending - Variance + Buy):
+                  the tanks really at the branch at the end of the day */}
               {bodyRow(
                 'Ending Inventory',
                 (r) => {
-                  const value = editing ? liveFilled(r).ending : r.ending
+                  const value = editing ? liveFilled(r).actual : (r.actual ?? r.ending)
                   const status = overall
                     ? 'In stock'
                     : stockStatus('LPG Cylinder ' + r.size, value, levels)
@@ -863,7 +865,7 @@ export default function InventoryTable({
                     </span>
                   )
                 },
-                (e) => (editing ? liveEmpties(e).ending : (Number(e.ending) || 0) + emptiesSaved(e).borrowed)
+                (e) => (editing ? liveEmpties(e).actual : (e.actual ?? e.ending))
               )}
 
               {/* Actual Count = Ending - Variance + Buy (FILLED and EMPTIES) */}
