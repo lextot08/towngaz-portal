@@ -3,6 +3,7 @@ import { loadBranchOrders, dayStart } from '../lib/branchOrders'
 import { todayString } from '../lib/dateUtils'
 import StaffLayout from '../components/StaffLayout'
 import useWaitingOrders from '../lib/useWaitingOrders'
+import { useAddress, go } from '../lib/address'
 
 // each page's code downloads only when it is first opened (a faster first load)
 const UpdatePrice = lazy(() => import('./UpdatePrice'))
@@ -16,9 +17,32 @@ const YearEndReport = lazy(() => import('./YearEndReport'))
 const CustomerProfile = lazy(() => import('./CustomerProfile'))
 const StaffHome = lazy(() => import('./StaffHome'))
 
+// the address of each page (Back / Forward move between them)
+const PAGE_PATHS = {
+  home: '/home',
+  inventory: '/inventory',
+  tankcount: '/tanks-count',
+  report: '/sales-log',
+  dailyreport: '/daily-report',
+  borrowed: '/borrowed',
+  monthly: '/monthly',
+  yearend: '/year-end',
+  customers: '/customers',
+  updateprice: '/update-price',
+}
+
 export default function Staff({ branch, fullName }) {
-  const [view, setView] = useState('main')
-  const [tab, setTab] = useState('home')
+  const path = useAddress()
+  const page = Object.keys(PAGE_PATHS).find((k) => PAGE_PATHS[k] === path) ?? null
+  const tab = page ?? 'home'
+  const view = page === 'updateprice' ? 'updateprice' : 'main'
+  const setTab = (key) => go(PAGE_PATHS[key])
+  const setView = (v) => go(PAGE_PATHS[v === 'updateprice' ? 'updateprice' : 'home'])
+
+  // an unknown address (for example the login screen just after logging in): Home
+  useEffect(() => {
+    if (!page) go(PAGE_PATHS.home, true)
+  }, [page])
   const [orders, setOrders] = useState([])
   const [message, setMessage] = useState('')
   const waiting = useWaitingOrders(branch) // website orders waiting for Accept / Reject

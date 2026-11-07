@@ -1,7 +1,8 @@
-import { useState, lazy, Suspense } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { BRANCHES } from '../lib/branches'
 import StaffLayout from '../components/StaffLayout'
 import useWaitingOrders from '../lib/useWaitingOrders'
+import { useAddress, go, branchSlug, branchOfSlug } from '../lib/address'
 
 // each page's code downloads only when it is first opened (a faster first load)
 const BranchView = lazy(() => import('./BranchView'))
@@ -18,12 +19,49 @@ const CustomerProfile = lazy(() => import('./CustomerProfile'))
 const ADMIN_BRANCH = 1 // Caloocan: the admin's staff tools work on this branch only
 const OVERALL = 0 // "Overall" under Branches: the total of all branches
 
+// the address of each page (Back / Forward move between them);
+// a branch is /branches/<branch>/<view>, for example /branches/caloocan/sales-log
+const PAGE_PATHS = {
+  home: '/home',
+  tankcount: '/tanks-count',
+  monthly: '/monthly',
+  yearend: '/year-end',
+  customers: '/customers',
+  recommendation: '/recommendation',
+  analytics: '/analytics',
+  accounts: '/manage-staff',
+  updateprice: '/update-price',
+}
+const VIEW_PATHS = { inventory: 'inventory', report: 'sales-log', dailyreport: 'daily-report' }
+const branchPath = (id, view = 'inventory') =>
+  `/branches/${id === OVERALL ? 'overall' : branchSlug(id)}/${VIEW_PATHS[view]}`
+
+// "/branches/caloocan/sales-log" -> { tab: 'branches', branch: 1, branchView: 'report' }, unknown -> null
+function readPath(path) {
+  const page = Object.keys(PAGE_PATHS).find((k) => PAGE_PATHS[k] === path)
+  if (page) return { tab: page, branch: OVERALL, branchView: 'inventory' }
+  const m = /^\/branches\/([a-z0-9-]+)\/([a-z-]+)$/.exec(path)
+  if (!m) return null
+  const branch = m[1] === 'overall' ? OVERALL : branchOfSlug(m[1])
+  const branchView = Object.keys(VIEW_PATHS).find((k) => VIEW_PATHS[k] === m[2])
+  if (branch === null || !branchView) return null
+  return { tab: 'branches', branch, branchView }
+}
+
 export default function Admin() {
-  const [tab, setTab] = useState('home')
-  const [branch, setBranch] = useState(OVERALL) // "Overall" or the branch chosen under Branches
-  const [view, setView] = useState('main')
-  const [branchView, setBranchView] = useState({ view: 'inventory', n: 0 }) // the view a branch opens on
+  const path = useAddress()
+  const route = readPath(path)
+  const { tab, branch, branchView } = route ?? { tab: 'home', branch: OVERALL, branchView: 'inventory' }
+  const view = tab === 'updateprice' ? 'updateprice' : 'main'
+  const setTab = (key) => go(PAGE_PATHS[key])
+  const setView = (v) => go(PAGE_PATHS[v === 'updateprice' ? 'updateprice' : 'home'])
   const waiting = useWaitingOrders(null) // website orders waiting, every branch
+
+  // an unknown address (for example the login screen just after logging in): Admin Home
+  const unknownAddress = route === null
+  useEffect(() => {
+    if (unknownAddress) go(PAGE_PATHS.home, true)
+  }, [unknownAddress])
 
   if (view === 'updateprice') {
     return (
@@ -35,14 +73,14 @@ export default function Admin() {
 
   // clicking Branches from another page starts at Overall
   const selectTab = (key) => {
-    if (key === 'branches' && tab !== 'branches') setBranch(OVERALL)
-    setTab(key)
+    if (key === 'branches') {
+      if (tab !== 'branches') go(branchPath(OVERALL))
+    } else setTab(key)
   }
 
-  // a branch under Branches
+  // a branch under Branches (it keeps the view shown: Stock Inventory, Daily Sales Log, ...)
   const selectChild = (parentKey, childKey) => {
-    setBranch(Number(childKey))
-    setTab(parentKey)
+    go(branchPath(Number(childKey), tab === 'branches' ? branchView : 'inventory'))
   }
 
   const items = [
@@ -76,9 +114,7 @@ export default function Admin() {
         count: waiting.length,
         onClick: () => {
           // the Daily Sales Log of the first branch with a website order waiting (or Caloocan)
-          setBranch(waiting[0]?.branch ?? ADMIN_BRANCH)
-          setBranchView((b) => ({ view: 'report', n: b.n + 1 }))
-          setTab('branches')
+          go(branchPath(waiting[0]?.branch ?? ADMIN_BRANCH, 'report'))
         },
       }}
     >
@@ -92,7 +128,11 @@ export default function Admin() {
       )}
 
       {tab === 'branches' && (
-        <BranchView key={branchView.n} branch={branch} initialView={branchView.view} />
+        <BranchView
+          branch={branch}
+          view={branchView}
+          onViewChange={(v) => go(branchPath(branch, v))}
+        />
       )}
 
       {tab === 'monthly' && <MonthlySales />}

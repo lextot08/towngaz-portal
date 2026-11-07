@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { BRANCHES, branchName } from '../lib/branches'
 import { EMAIL_DOMAIN } from '../lib/accountRules'
 import { alertDialog } from '../components/Confirm'
+import { useAddress, go, branchSlug, branchOfSlug } from '../lib/address'
 
 export const WEBSITE_URL = 'https://towngaz-web.vercel.app/' // the customer website
 
@@ -70,9 +71,23 @@ const INPUT = 'min-w-0 flex-1 border-0 bg-transparent px-0 py-3.5 text-[15px] te
 // Accounts are made by the admin (Manage account), so there is no sign-up here.
 // onCheckingChange(true) keeps the portal closed while the account's branch is checked.
 export default function Login({ onCheckingChange = () => {} }) {
-  const [stage, setStage] = useState('branch') // branch | login
-  const [branch, setBranch] = useState(null)
-  const [accountType, setAccountType] = useState('staff') // staff | admin
+  // the screen comes from the address: "/" choose a branch, "/login/caloocan" or "/login/admin" the form
+  // (so the browser's Back goes from the form to the branches instead of leaving the site)
+  const path = useAddress()
+  const loginFor = /^\/login\/([a-z0-9-]+)$/.exec(path)?.[1] ?? null
+  const isAdminLogin = loginFor === 'admin'
+  const branch = isAdminLogin ? null : branchOfSlug(loginFor)
+  const stage = isAdminLogin || branch ? 'login' : 'branch' // branch | login
+  // Staff or Admin: from the address, unless the Staff / Admin switch was clicked on this screen
+  const [typeChoice, setTypeChoice] = useState(null) // { for: loginFor, type }
+  const accountType =
+    typeChoice?.for === loginFor ? typeChoice.type : isAdminLogin ? 'admin' : 'staff' // staff | admin
+  const setAccountType = (type) => setTypeChoice({ for: loginFor, type })
+
+  // an address that is not a login screen (for example a page of the portal after logging out)
+  useEffect(() => {
+    if (stage === 'branch' && path !== '/') go('/', true)
+  }, [path, stage])
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -83,25 +98,21 @@ export default function Login({ onCheckingChange = () => {} }) {
   const onBranchScreen = stage === 'branch'
 
   const chooseBranch = (id) => {
-    setBranch(id)
-    setAccountType('staff')
+    go(`/login/${branchSlug(id)}`)
     setMessage('')
     setWarning(null)
-    setStage('login')
   }
 
   const adminLogin = () => {
-    setBranch(null)
-    setAccountType('admin')
+    go('/login/admin')
     setMessage('')
     setWarning(null)
-    setStage('login')
   }
 
   const backToBranches = () => {
     setMessage('')
     setWarning(null)
-    setStage('branch')
+    go('/')
   }
 
   // "juan" -> "juan@towngaz.com"; a full email is used as it is
@@ -185,7 +196,7 @@ export default function Login({ onCheckingChange = () => {} }) {
 
   // "Go to <branch>" in the warning: switch to the right branch, keep what was typed
   const switchBranch = (id) => {
-    setBranch(id)
+    go(`/login/${branchSlug(id)}`, true)
     setWarning(null)
   }
 
